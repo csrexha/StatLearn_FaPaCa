@@ -1,6 +1,18 @@
-## data simulator ######
+#' data simulator
+#'
+#' @param N no of samples
+#' @param P no of predictors
+#' @param p_ref no of relevant predictors
+#' @param tau bias
+#' @param sigma variance
+#' @param rho correlation
+#' @param link link function
+#'
+#' @returns list of y and x
+#' @export
 
 binary_data_generator <- function(N, P, p_ref, tau, sigma, rho, link = "logit"){
+    
   linkinv <- make.link(link)$linkinv
   
   f <- rnorm(N, 0, 1)
