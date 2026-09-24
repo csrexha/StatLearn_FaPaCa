@@ -3,14 +3,7 @@
 # StatLearn\_FaPaCa <img src="figures/readme/compendium-sticker.png" align="right" style="float:right; height:120px;"/>
 
 <!-- badges: start -->
-
-[![License: GPL (&gt;=
-2)](https://img.shields.io/badge/License-GPL%20%28%3E%3D%202%29-blue.svg)](https://choosealicense.com/licenses/gpl-2.0/)
-[![LifeCycle](https://img.shields.io/badge/lifecycle-stable-green)](https://lifecycle.r-lib.org/articles/stages.html#stable)
-[![Project Status:
-Active](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
 <!-- badges: end -->
-
 <p align="left">
 • <a href="#overview">Overview</a><br> • <a href="#data-sources">Data
 sources</a><br> • <a href="#workflow">Workflow</a><br> •
