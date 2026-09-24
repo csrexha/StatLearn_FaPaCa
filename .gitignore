@@ -1,7 +1,26 @@
-.Rprofile
-.Rproj.user
+# macOS files ----
+.DS_Store
+
+# History files ----
 .Rhistory
+.Rapp.history
+
+# Session Data files ----
 .RData
 .Ruserdata
-rv/
+
+# RStudio files ----
 *.Rproj
+.Rproj.user/
+
+# R Environment Variables ----
+.Renviron
+
+# User-specific files ----
+README.html
+inst/doc
+man/
+NAMESPACE
+renv/
+.Rprofile
+rv/
