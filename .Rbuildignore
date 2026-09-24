@@ -15,3 +15,5 @@
 ^CODE_OF_CONDUCT\.md$
 ^README\.Rmd$
 ^README\.html$
+^Dockerfile$
+^\.dockerignore$
