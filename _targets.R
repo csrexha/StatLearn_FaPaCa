@@ -122,6 +122,89 @@ get_adalasso_test_prediction <- function(fit, newdata) {
         rbindlist()
 }
 
+fit_glmboost <- function(data) {
+    data |>
+        map(
+            function(data) {
+                # setting initial number of iteration
+                iter <- 50
+
+                # fit the logistic boosting model
+                fit <- glmboost(y ~ .,
+                                data = data,
+                                family = Binomial(type = "adaboost", link = "logit"),
+                                control = boost_control(mstop = iter, nu = .1))
+
+                # adjust the number of iteration using AIC (logit link only)
+                aic <- AIC(fit, method = "classical")
+
+                while(iter <= mstop(aic) * 1.2 && iter < 1000){
+                    iter <- iter + 50
+                    mstop(fit) <- iter
+                    aic <- AIC(fit, method = "classical")
+                }
+
+                # set a resampling scheme.
+                rsmp <- cv(model.weights(fit),
+                           type = "bootstrap",
+                           strata = fit$response)
+
+                # using resampling to search for the optimal iteration.
+                mboost_cvrisk <- cvrisk(fit,
+                                        folds = rsmp,
+                                        mc.cores = 4)
+
+                # obtain the optimal model according to mstop
+                mstop(fit) <- mstop(mboost_cvrisk)
+
+                # return fitted model
+                return(fit)
+            }
+        )
+}
+
+extract_glmboost_varimp <- function(fit) {
+
+    ## extract variable importance of each fold ####
+    glmboost_varimp <- imap(
+        fit,
+        function(x, idx){
+            varimp_logit <- as.data.table(varimp(x))[order(reduction, decreasing = TRUE)]
+            setnames(varimp_logit, "variable", "Variable")
+            varimp_logit[, `:=` (blearner  = as.character(blearner),
+                                 Variable  = as.character(Variable),
+                                 Simulation = idx)]
+            return(varimp_logit)
+            }) |>
+        rbindlist()
+
+    ## summarise the results of all folds ####
+    glmboost_varimp_summary <- simdata_glmboost_varimp[
+        reduction > 0,
+        .(mrd = mean(reduction), msf = mean(selfreq), selfreq = .N),
+        by = .(Variable, blearner, Simulation)][order(-selfreq)]
+
+    return(glmboost_varimp_summary)
+}
+
+get_glmboost_test_prediction <- function(fit, newdata) {
+    ## obtain test result ####
+    simdata_glmboost_testpred <- pmap(
+        list(fit, newdata, 1:100),
+        function(x, y, z) data.table(
+            Simultaion = z,
+            y = y$y,
+            response = as.vector(predict(x, newdata = y, type = "response"))
+            )
+        )  |>
+        rbindlist()
+
+    ## classify the test prediction ####
+    simdata_glmboost_testpred[, predict := factor(ifelse(response > .5, 1, 0))]
+
+    return(simdata_glmboost_testpred)
+}
+
 # Replace the target list below with your own:
 list(
   tar_target(simulated_data, get_simulated_data(n = 100, seed = 119752361)),
@@ -129,8 +212,13 @@ list(
   tar_target(train_data, get_train_cv_data(scaled_cv_data)),
   tar_target(test_data, get_test_cv_data(scaled_cv_data)),
   tar_target(adaptive_lasso, fit_adaptive_lasso(train_data)),
+  tar_target(glmboost, fit_glmboost(train_data)),
   tar_target(test_pred_adaptive_lasso,
              get_adalasso_test_prediction(adaptive_lasso, test_data)),
+  tar_target(test_pred_glmboost,
+             get_glmboost_test_prediction(glmboost, test_data)),
   tar_target(selected_features_adaptive_lasso,
-             extract_adalasso_selected_features(adaptive_lasso))
+             extract_adalasso_selected_features(adaptive_lasso)),
+  tar_target(glmboost_varimp,
+             extract_glmboost_varimp(glmboost))
 )
