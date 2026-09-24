@@ -1,0 +1,25 @@
+Package: StatLearn_FaPaCa
+Type: Package
+Title: Proteomics biomarker discovery for individualized prevention of 
+familial pancreatic cancer using statistical learning
+Version: 0.0.0.9000
+Authors@R: c(
+    person(given   = "Chung Shing Rex",
+           family  = "Ha",
+           role    = c("aut", "cre", "cph"),
+           email   = "chungshingrex@gmail.com",
+           comment = c(ORCID = "0000-0001-5238-0963")))
+Description: This package showcases the workflow in the manuscript 
+Proteomics biomarker discovery for individualized prevention of 
+familial pancreatic cancer using statistical learning
+URL: https://github.com/csrexha/StatLearn_FaPaCa
+BugReports: https://github.com/csrexha/StatLearn_FaPaCa/issues
+License: GPL (>= 2)
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 8.1.0
+Suggests: 
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Imports: 
+    renv

@@ -1,0 +1,13 @@
+^renv$
+^renv\.lock$
+^StatLearn_FaPaCa\.Rproj$
+^\.Rproj\.user$
+^\.DS_Store$
+^LICENSE\.md$
+^data$
+^analyses$
+^outputs$
+^figures$
+^manuscript$
+^make\.R$
+^\.Rprofile$
