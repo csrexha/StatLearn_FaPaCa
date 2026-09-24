@@ -179,7 +179,7 @@ extract_glmboost_varimp <- function(fit) {
         rbindlist()
 
     ## summarise the results of all folds ####
-    glmboost_varimp_summary <- simdata_glmboost_varimp[
+    glmboost_varimp_summary <- glmboost_varimp[
         reduction > 0,
         .(mrd = mean(reduction), msf = mean(selfreq), selfreq = .N),
         by = .(Variable, blearner, Simulation)][order(-selfreq)]
@@ -205,6 +205,52 @@ get_glmboost_test_prediction <- function(fit, newdata) {
     return(simdata_glmboost_testpred)
 }
 
+fit_ridge <- function(data) {
+
+    ## perform ridge regression / L2-regularisation ####
+    ridge_fit <- data |>
+        map (
+         function(data) {
+
+             # convert data to matrix
+             xmat <- as.matrix(data[, -1])
+             y <- data$y
+
+             # assign weights
+             w0 <- .5*length(y)/sum(y == 0)
+             w1 <- .5*length(y)/sum(y == 1)
+             w01 <- ifelse(y == 0, w0, w1)
+
+             # fit ridge regression
+             glmnet::cv.glmnet(x = xmat, y = y,
+                               alpha = 0,
+                               nlambda = 500,
+                               weights = w01,
+                               family = "binomial",
+                               type.measure = "deviance",
+                               nfolds = 10)
+         }
+        )
+}
+
+get_ridge_test_prediction <- function(fit, newdata) {
+    ## obtain test results ####
+    map2(fit, newdata,
+         function(x, y){
+             data.table(y = as.factor(y$y),
+                        response = as.vector(predict(x, s = x$lambda.min,
+                                                     newx = as.matrix(y[, -1]),
+                                                     type = "response")),
+                        predict = factor(predict(x,
+                                                 s = x$lambda.min,
+                                                 newx = as.matrix(y[, -1]),
+                                                 type = "class"),
+                                         levels = c(0, 1)))
+             }
+         ) |>
+        rbindlist()
+}
+
 # Replace the target list below with your own:
 list(
   tar_target(simulated_data, get_simulated_data(n = 100, seed = 119752361)),
@@ -213,10 +259,13 @@ list(
   tar_target(test_data, get_test_cv_data(scaled_cv_data)),
   tar_target(adaptive_lasso, fit_adaptive_lasso(train_data)),
   tar_target(glmboost, fit_glmboost(train_data)),
+  tar_target(ridge, fit_ridge(train_data)),
   tar_target(test_pred_adaptive_lasso,
              get_adalasso_test_prediction(adaptive_lasso, test_data)),
   tar_target(test_pred_glmboost,
              get_glmboost_test_prediction(glmboost, test_data)),
+  tar_target(test_pred_ridge,
+             get_ridge_test_prediction(glmboost, test_data)),
   tar_target(selected_features_adaptive_lasso,
              extract_adalasso_selected_features(adaptive_lasso)),
   tar_target(glmboost_varimp,
