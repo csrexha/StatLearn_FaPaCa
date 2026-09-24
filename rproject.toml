@@ -13,8 +13,4 @@ dependencies = [
     "testthat",
     "tidyverse",
     "targets",
-    "rmarkdown",
-    "rcompendium",
-    "devtools",
-    "roxygen2",
 ]
