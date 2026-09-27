@@ -252,6 +252,100 @@ get_ridge_test_prediction <- function(fit, newdata) {
         rbindlist()
 }
 
+# stability selection function with adaptive lasso
+cpss_adaptive_lasso <- function(data, q, PFER){
+
+    # stratified subsampling
+    stabs_rsmp <- stabs::subsample(rep(1, nrow(data$x)), B = 50, strata = as.factor(data$y))
+
+    simdata_stabsel <- stabs::stabsel(
+        x = data$x,
+        y = data$y,
+        fitfun = glmnet.adalasso,
+        args.fitfun = list(
+            type = "conservative",
+            family = "binomial",
+            standardize = FALSE,
+            l2_lambda = 10,
+            weighted = TRUE,
+            gamma = 2
+        ),
+        sampling.type = "SS",
+        assumption = "unimod",
+        B = 50,
+        folds  = stabs_rsmp,
+        q = q,
+        PFER = PFER
+    )
+
+    return(simdata_stabsel)
+}
+
+generate_simulated_data <- function(
+        N = 50,
+        P = 500,
+        p_ref = 10,
+        tau = -9,
+        sigma = 10,
+        rho = runif(10, 0.05, 0.95),
+        seed) {
+
+    set.seed(seed)
+
+    CJ(
+        N = N,
+        P = P,
+        p_ref = p_ref,
+        tau = tau,
+        sigma = sigma,
+        rho = rho
+    ) |>
+        pmap(binary_data_generator)
+}
+
+run_cpss_adaptive_lasso <- function(data) {
+    data |>
+        map(function(data) cpss_adaptive_lasso(data, 10, 2))
+}
+
+# function for stability selection using glmboost
+cpss_glmboost <- function(data, q = 10, PFER = 2){
+
+    dimnames(data$x) <- list(NULL, paste0("X", 1:ncol(data$x)))
+
+    # fit the logistic boosting model
+    mboost_fit <- glmboost(
+        x = cbind(Intercept = 1, data$x),
+        y = as.factor(data$y),
+        family = Binomial(link = "logit"),
+        control = boost_control(mstop = 500, nu = 0.1)
+    )
+
+    # stratified subsampling
+    stabs_rsmp <- subsample(
+        model.weights(mboost_fit),
+        B = 50,
+        strata = mboost_fit$response
+    )
+
+    mboost_stabsel <- stabsel(
+        mboost_fit,
+        q = q,
+        PFER = PFER,
+        sampling.type = "SS",
+        assumption = "unimod",
+        folds = stabs_rsmp,
+        grid = 0:500
+    )
+
+    return(mboost_stabsel)
+}
+
+run_cpss_glmboost <- function(data) {
+    data |>
+        map(function(data) cpss_glmboost(data, 10, 2))
+}
+
 # pipelines
 list(
     # simulation experiment 1 --------------------------------------------------------------
@@ -278,5 +372,38 @@ list(
     # extract the selected features in adpative lasso and glmboost
     tar_target(selected_features_adaptive_lasso,
                extract_adalasso_selected_features(adaptive_lasso)),
-    tar_target(glmboost_varimp, extract_glmboost_varimp(glmboost))
+    tar_target(glmboost_varimp, extract_glmboost_varimp(glmboost)),
+
+    # simulation experiment 2 --------------------------------------------------------------
+
+    # simulate data with different scenarios (different N, P, p_ref, tau and rho)
+    tar_target(simulated_data_N,
+               generate_simulated_data(N = rep(c(30, 50, 100), each = 100),
+                                       seed = 39374)),
+    tar_target(simulated_data_P,
+               generate_simulated_data(P = rep(c(100, 500, 5000), each = 100),
+                                       seed = 44234374)),
+    tar_target(simulated_data_pref,
+               generate_simulated_data(p_ref = rep(c(2, 5, 10, 20), each = 100),
+                                       seed = 123474)),
+    tar_target(simulated_data_tau,
+               generate_simulated_data(tau = rep(c(0, -2, -4, -6), each = 100),
+                                       seed = 964896)),
+    tar_target(simulated_data_rho,
+               generate_simulated_data(rho = rep(c(0.1, 0.3, 0.5, 0.7), each = 100),
+                                       seed = 6418241)),
+
+    # stability selection using adaptive lasso
+    tar_target(stabsel_adaptive_lasso_N, run_cpss_adaptive_lasso(simulated_data_N)),
+    tar_target(stabsel_adaptive_lasso_P, run_cpss_adaptive_lasso(simulated_data_P)),
+    tar_target(stabsel_adaptive_lasso_pref, run_cpss_adaptive_lasso(simulated_data_pref)),
+    tar_target(stabsel_adaptive_lasso_tau, run_cpss_adaptive_lasso(simulated_data_tau)),
+    tar_target(stabsel_adaptive_lasso_rho, run_cpss_adaptive_lasso(simulated_data_rho)),
+
+    # stability selection using glmboost
+    tar_target(stabsel_glmboost_N, run_cpss_glmboost(simulated_data_N)),
+    tar_target(stabsel_glmboost_P, run_cpss_glmboost(simulated_data_P)),
+    tar_target(stabsel_glmboost_pref, run_cpss_glmboost(simulated_data_pref)),
+    tar_target(stabsel_glmboost_tau, run_cpss_glmboost(simulated_data_tau)),
+    tar_target(stabsel_glmboost_rho, run_cpss_glmboost(simulated_data_rho))
 )
