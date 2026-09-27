@@ -7,9 +7,9 @@ tar_source()
 
 # Set target options:
 tar_option_set(
-  packages = c("data.table", "purrr", "magrittr", "caret", "glmnet", "mboost"),
+  packages = c("data.table", "purrr", "magrittr", "caret", "glmnet", "mboost", "stabs"),
   format = "qs",
-  controller = crew_controller_local(workers = 2)
+  controller = crew_controller_local(workers = 4)
 )
 
 get_simulated_data <- function(n, seed) {
@@ -123,6 +123,7 @@ get_adalasso_test_prediction <- function(fit, newdata) {
 }
 
 fit_glmboost <- function(data) {
+
     data |>
         map(
             function(data) {
@@ -150,12 +151,12 @@ fit_glmboost <- function(data) {
                            strata = fit$response)
 
                 # using resampling to search for the optimal iteration.
-                mboost_cvrisk <- cvrisk(fit,
-                                        folds = rsmp,
-                                        mc.cores = 4)
+                fit_cvrisk <- cvrisk(fit,
+                                     folds = rsmp,
+                                     mc.cores = 4)
 
                 # obtain the optimal model according to mstop
-                mstop(fit) <- mstop(mboost_cvrisk)
+                mstop(fit) <- mstop(fit_cvrisk)
 
                 # return fitted model
                 return(fit)
@@ -251,23 +252,31 @@ get_ridge_test_prediction <- function(fit, newdata) {
         rbindlist()
 }
 
-# Replace the target list below with your own:
+# pipelines
 list(
-  tar_target(simulated_data, get_simulated_data(n = 100, seed = 119752361)),
-  tar_target(scaled_cv_data, get_stratified_cv_data(simulated_data, seed = 873)),
-  tar_target(train_data, get_train_cv_data(scaled_cv_data)),
-  tar_target(test_data, get_test_cv_data(scaled_cv_data)),
-  tar_target(adaptive_lasso, fit_adaptive_lasso(train_data)),
-  tar_target(glmboost, fit_glmboost(train_data)),
-  tar_target(ridge, fit_ridge(train_data)),
-  tar_target(test_pred_adaptive_lasso,
-             get_adalasso_test_prediction(adaptive_lasso, test_data)),
-  tar_target(test_pred_glmboost,
-             get_glmboost_test_prediction(glmboost, test_data)),
-  tar_target(test_pred_ridge,
-             get_ridge_test_prediction(glmboost, test_data)),
-  tar_target(selected_features_adaptive_lasso,
-             extract_adalasso_selected_features(adaptive_lasso)),
-  tar_target(glmboost_varimp,
-             extract_glmboost_varimp(glmboost))
+    # simulation experiment 1 --------------------------------------------------------------
+
+    # simulate data
+    tar_target(simulated_data, get_simulated_data(n = 100, seed = 119752361)),
+    tar_target(scaled_cv_data, get_stratified_cv_data(simulated_data, seed = 873)),
+    tar_target(train_data, get_train_cv_data(scaled_cv_data)),
+    tar_target(test_data, get_test_cv_data(scaled_cv_data)),
+
+    # fit ridge, adaptive lasso, glmboost regression to training data
+    tar_target(ridge, fit_ridge(train_data)),
+    tar_target(adaptive_lasso, fit_adaptive_lasso(train_data)),
+    tar_target(glmboost, fit_glmboost(train_data)),
+
+    # estimate the test prediction
+    tar_target(test_pred_ridge,
+               get_ridge_test_prediction(glmboost, test_data)),
+    tar_target(test_pred_adaptive_lasso,
+               get_adalasso_test_prediction(adaptive_lasso, test_data)),
+    tar_target(test_pred_glmboost,
+               get_glmboost_test_prediction(glmboost, test_data)),
+
+    # extract the selected features in adpative lasso and glmboost
+    tar_target(selected_features_adaptive_lasso,
+               extract_adalasso_selected_features(adaptive_lasso)),
+    tar_target(glmboost_varimp, extract_glmboost_varimp(glmboost))
 )
