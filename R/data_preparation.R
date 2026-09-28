@@ -33,10 +33,10 @@ binary_data_generator <- function(N, P, p_ref, tau, sigma, rho, link = "logit"){
     return(list(y = y, x = x))
 }
 
-#' get data for simulation study
+#' Generate data for simulation study
 #'
 #' @description
-#' Generate data sets using binary_data_generator with fixed parameter N=50, P=500,
+#' Generate data sets using binary_data_generator with default parameter N=50, P=500,
 #' p_ref=10, tau=-9, sigma=10, rho=runif(10, 0.05, 0.95) to reflect the unbalanced class
 #' proportion
 #'
@@ -46,31 +46,39 @@ binary_data_generator <- function(N, P, p_ref, tau, sigma, rho, link = "logit"){
 #' @returns list of data
 #' @export
 
-get_simulated_data <- function(n, seed) {
+get_simulated_data <- function(
+        n = 1,
+        N = 50,
+        P = 500,
+        p_ref = 10,
+        tau = -9,
+        sigma = 10,
+        rho = NULL,
+        seed) {
 
     set.seed(seed)
 
-    map(1:n, function(x){
+    if (is.null(rho)) {
+        rho <- runif(10, 0.05, 0.95)
+    }
 
-        # generate binary data
-        simdata <- binary_data_generator(
-            N = 50,
-            P = 500,
-            p_ref = 10,
-            tau = -9,
-            sigma = 10,
-            rho = runif(10, 0.05, 0.95)
-            ) |>
-            as.data.table()
-
-        # turn binary data into factor
-        simdata[, y := as.factor(y)]
-
-        # rename the columns
-        setnames(simdata, old = paste0("x.V", 1:500), new = paste0("X", 1:500))
-
-        return(simdata)
-        }
+    CJ(
+        i = 1:n,
+        N = N,
+        P = P,
+        p_ref = p_ref,
+        tau = tau,
+        sigma = sigma,
+        rho = list(rho),
+        sorted = FALSE
+        ) |>
+        pmap(
+            function(i, N, P, p_ref, tau, sigma, rho) {
+                binary_data_generator(N, P, p_ref, tau, sigma, rho) |>
+                    as.data.table() |>
+                    _[, y := as.factor(y)] |>
+                    setnames(old = paste0("x.V", 1:P), new = paste0("X", 1:P))
+                }
         )
 }
 
@@ -90,7 +98,7 @@ get_stratified_cv_data <- function(data, seed) {
 
     set.seed(seed)
 
-    cv_ind <- map(data, function(x) createDataPartition(x$y, p = .7, list = FALSE))
+    cv_ind <- map(data, function(x) createDataPartition(x$y, p = 0.7, list = FALSE))
 
     ## standardise the training and test data ####
     vars <- paste0("X", 1:500)
