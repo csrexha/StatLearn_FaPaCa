@@ -1,4 +1,4 @@
-#' Adaptive lasso
+#' Adaptive lasso for stability selection
 #'
 #' @param x dependent variable matrix
 #' @param y independent variable vector
@@ -113,15 +113,13 @@ cpss_adaptive_lasso <- function(data, q, PFER){
 
 cpss_glmboost <- function(data, q = 10, PFER = 2){
 
-    dimnames(data$x) <- list(NULL, paste0("X", 1:ncol(data$x)))
-
     # fit the logistic boosting model
     mboost_fit <- glmboost(
-        x = cbind(Intercept = 1, data$x),
-        y = as.factor(data$y),
-        family = Binomial(link = "logit"),
+        y ~ .,
+        data = data,
+        family = Binomial(type = "adaboost", link = "logit"),
         control = boost_control(mstop = 500, nu = 0.1)
-    )
+        )
 
     # stratified subsampling
     stabs_rsmp <- subsample(
