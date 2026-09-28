@@ -7,20 +7,24 @@ tar_source()
 
 # Set target options:
 tar_option_set(
-  packages = c("data.table", "purrr", "magrittr", "caret", "glmnet", "mboost", "stabs"),
-  format = "qs",
-  controller = crew_controller_local(workers = 4)
+    packages = c("data.table", "purrr", "magrittr", "caret", "glmnet", "mboost", "stabs"),
+    format = "qs",
+    controller = crew_controller_local(workers = 4)
 )
 
 # stability selection function with adaptive lasso
 cpss_adaptive_lasso <- function(data, q, PFER){
 
+    # convert data to matrix
+    xmat <- as.matrix(data[, -1])
+    y <- data$y
+
     # stratified subsampling
-    stabs_rsmp <- stabs::subsample(rep(1, nrow(data$x)), B = 50, strata = as.factor(data$y))
+    stabs_rsmp <- stabs::subsample(rep(1, nrow(xmat)), B = 50, strata = as.factor(y))
 
     simdata_stabsel <- stabs::stabsel(
-        x = data$x,
-        y = data$y,
+        x = xmat,
+        y = y,
         fitfun = glmnet.adalasso,
         args.fitfun = list(
             type = "conservative",
