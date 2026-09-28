@@ -43,7 +43,7 @@ cpss_adaptive_lasso <- function(data, q, PFER){
 
 run_cpss_adaptive_lasso <- function(data) {
     data |>
-        map(function(data) cpss_adaptive_lasso(data, 10, 2))
+        map(function(x) cpss_adaptive_lasso(x, 10, 2))
 }
 
 # function for stability selection using glmboost
@@ -81,7 +81,7 @@ cpss_glmboost <- function(data, q = 10, PFER = 2){
 
 run_cpss_glmboost <- function(data) {
     data |>
-        map(function(data) cpss_glmboost(data, 10, 2))
+        map(function(x) cpss_glmboost(x, 10, 2))
 }
 
 # pipelines
