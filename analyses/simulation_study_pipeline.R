@@ -41,28 +41,6 @@ cpss_adaptive_lasso <- function(data, q, PFER){
     return(simdata_stabsel)
 }
 
-generate_simulated_data <- function(
-        N = 50,
-        P = 500,
-        p_ref = 10,
-        tau = -9,
-        sigma = 10,
-        rho = runif(10, 0.05, 0.95),
-        seed) {
-
-    set.seed(seed)
-
-    CJ(
-        N = N,
-        P = P,
-        p_ref = p_ref,
-        tau = tau,
-        sigma = sigma,
-        rho = rho
-    ) |>
-        pmap(binary_data_generator)
-}
-
 run_cpss_adaptive_lasso <- function(data) {
     data |>
         map(function(data) cpss_adaptive_lasso(data, 10, 2))
