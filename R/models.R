@@ -117,7 +117,7 @@ fit_glmboost <- function(data) {
                 fit <- glmboost(y ~ .,
                                 data = data,
                                 family = Binomial(type = "adaboost", link = "logit"),
-                                control = boost_control(mstop = iter, nu = .1))
+                                control = boost_control(mstop = iter, nu = 0.1))
 
                 # adjust the number of iteration using AIC (logit link only)
                 aic <- AIC(fit, method = "classical")
