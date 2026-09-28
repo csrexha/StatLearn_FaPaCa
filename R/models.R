@@ -1,3 +1,43 @@
+#' Fit ridge regression model
+#'
+#' @description
+#' This function fits a ridge regression model to each dataset in the provided list of data.
+#'
+#' @param data A list of data frames
+#'
+#' @returns A list of fitted ridge regression models
+#' @export
+
+fit_ridge <- function(data) {
+
+    ## perform ridge regression / L2-regularisation ####
+    data |>
+        map (
+            function(data) {
+
+                # convert data to matrix
+                xmat <- as.matrix(data[, -1])
+                y <- data$y
+
+                # assign weights
+                w0 <- 0.5*length(y)/sum(y == 0)
+                w1 <- 0.5*length(y)/sum(y == 1)
+                w01 <- ifelse(y == 0, w0, w1)
+
+                foldid <- createFolds(as.factor(y), k = 5, list = FALSE)
+
+                # fit ridge regression
+                glmnet::cv.glmnet(x = xmat, y = y,
+                                  alpha = 0,
+                                  nlambda = 500,
+                                  weights = w01,
+                                  family = "binomial",
+                                  type.measure = "deviance",
+                                  foldid = foldid)
+            }
+        )
+}
+
 #' Fit adaptive lasso model
 #'
 #' @description
@@ -103,45 +143,6 @@ fit_glmboost <- function(data) {
 
                 # return fitted model
                 return(fit)
-            }
-        )
-}
-
-
-#' Fit ridge regression model
-#'
-#' @description
-#' This function fits a ridge regression model to each dataset in the provided list of data.
-#'
-#' @param data A list of data frames
-#'
-#' @returns A list of fitted ridge regression models
-#' @export
-
-fit_ridge <- function(data) {
-
-    ## perform ridge regression / L2-regularisation ####
-    ridge_fit <- data |>
-        map (
-            function(data) {
-
-                # convert data to matrix
-                xmat <- as.matrix(data[, -1])
-                y <- data$y
-
-                # assign weights
-                w0 <- .5*length(y)/sum(y == 0)
-                w1 <- .5*length(y)/sum(y == 1)
-                w01 <- ifelse(y == 0, w0, w1)
-
-                # fit ridge regression
-                glmnet::cv.glmnet(x = xmat, y = y,
-                                  alpha = 0,
-                                  nlambda = 500,
-                                  weights = w01,
-                                  family = "binomial",
-                                  type.measure = "deviance",
-                                  nfolds = 10)
             }
         )
 }
