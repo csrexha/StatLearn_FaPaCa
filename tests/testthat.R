@@ -7,6 +7,6 @@
 # * https://testthat.r-lib.org/articles/special-files.html
 
 library(testthat)
-library(StatLearn_FaPaCa)
+library(statlearnfapaca)
 
-test_check("StatLearn_FaPaCa")
+test_check("statlearnfapaca")

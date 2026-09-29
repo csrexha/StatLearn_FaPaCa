@@ -1,4 +1,4 @@
-Package: StatLearn_FaPaCa
+Package: statlearnfapaca
 Type: Package
 Title: Proteomics biomarker discovery for individualized prevention of familial pancreatic cancer using statistical learning
 Version: 0.0.0.9000
