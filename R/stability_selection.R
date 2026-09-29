@@ -31,12 +31,13 @@ glmnet.adalasso <- function(x, y, q, l2_lambda, type = c("conservative", "antico
 
     # fit model
     type <- match.arg(type)
+    # pmax / dfmax are passed via `control` (glmnet >= 5.0 deprecates them as arguments)
     if (type == "conservative")
-        fit <- suppressWarnings(glmnet(x, y, pmax = q, alpha = 1,
-                                       weight = w01, family = family, penalty.factor = pf, ...))
+        fit <- suppressWarnings(glmnet(x, y, alpha = 1, weight = w01, family = family,
+                                       penalty.factor = pf, control = list(pmax = q), ...))
     if (type == "anticonservative")
-        fit <- glmnet(x, y, dfmax = q - 1, alpha = 1,
-                      weight = w01, family = family, penalty.factor = pf, ...)
+        fit <- glmnet(x, y, alpha = 1, weight = w01, family = family,
+                      penalty.factor = pf, control = list(dfmax = q - 1), ...)
 
     # which coefficients are non-zero?
     selected <- predict(fit, type = "nonzero")

@@ -31,11 +31,8 @@ test_that("glmnet.adalasso limits the number of selected variables", {
     d <- adalasso_input(N = 200)
     cons <- glmnet.adalasso(d$x, d$y, q = 3, l2_lambda = 10, type = "conservative",
                             family = "binomial", standardize = FALSE)
-    # glmnet >= 5.0 deprecates the dfmax argument used by this type
-    anti <- suppressWarnings(
-        glmnet.adalasso(d$x, d$y, q = 3, l2_lambda = 10, type = "anticonservative",
-                        family = "binomial", standardize = FALSE)
-    )
+    anti <- glmnet.adalasso(d$x, d$y, q = 3, l2_lambda = 10, type = "anticonservative",
+                            family = "binomial", standardize = FALSE)
 
     expect_lte(sum(cons$selected), 3)
     expect_lte(sum(anti$selected), 2)

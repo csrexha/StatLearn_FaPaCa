@@ -23,7 +23,7 @@ Imports:
     caret,
     crew,
     data.table,
-    glmnet,
+    glmnet (>= 5.0),
     magrittr,
     mboost,
     missForest,
