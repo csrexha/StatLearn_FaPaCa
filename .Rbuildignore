@@ -17,3 +17,10 @@
 ^Dockerfile$
 ^\.dockerignore$
 ^\.posit/assistant$
+^\.github$
+^project-files$
+^Readme_old
+^_targets$
+^\.quarto$
+^check$
+^\.gitignore$

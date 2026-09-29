@@ -28,8 +28,6 @@
 #' @export
 glmnet.adalasso <- function(x, y, q, l2_lambda, type = c("conservative", "anticonservative"),
                             family, weighted = TRUE, gamma = 2, ...) {
-    require(glmnet)
-
     # calculate the weights
     if(weighted){
         w0 <- 0.5 * length(y)/sum(y == 0)
@@ -40,7 +38,7 @@ glmnet.adalasso <- function(x, y, q, l2_lambda, type = c("conservative", "antico
     }
 
     # determine the penalty factor
-    ridgefit <- glmnet(x, y, alpha = 0, weight = w01, intercept = TRUE, family = family, ...)
+    ridgefit <- glmnet(x, y, alpha = 0, weights = w01, intercept = TRUE, family = family, ...)
     weight <- as.vector(1/abs(coef(ridgefit, s = l2_lambda))**gamma)[-1]
     pf <- ncol(x) * weight/sum(weight)
 
@@ -48,10 +46,10 @@ glmnet.adalasso <- function(x, y, q, l2_lambda, type = c("conservative", "antico
     type <- match.arg(type)
     # pmax / dfmax are passed via `control` (glmnet >= 5.0 deprecates them as arguments)
     if (type == "conservative")
-        fit <- suppressWarnings(glmnet(x, y, alpha = 1, weight = w01, family = family,
+        fit <- suppressWarnings(glmnet(x, y, alpha = 1, weights = w01, family = family,
                                        penalty.factor = pf, control = list(pmax = q), ...))
     if (type == "anticonservative")
-        fit <- glmnet(x, y, alpha = 1, weight = w01, family = family,
+        fit <- glmnet(x, y, alpha = 1, weights = w01, family = family,
                       penalty.factor = pf, control = list(dfmax = q - 1), ...)
 
     # which coefficients are non-zero?

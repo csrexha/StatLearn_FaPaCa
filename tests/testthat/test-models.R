@@ -5,7 +5,7 @@ train <- get_train_cv_data(cv)
 test  <- get_test_cv_data(cv)
 ridge <- fit_ridge(train, binary_class = "y")
 adalasso <- fit_adaptive_lasso(train, binary_class = "y")
-glmb  <- fit_glmboost(train, binary_class = "y", seed = 1)
+glmb  <- fit_glmboost(train, binary_class = "y", seed = 1, cores = 2)
 
 predictors <- paste0("X", 1:10)
 
@@ -64,14 +64,14 @@ test_that("fit_glmboost returns one glmboost model per data set with a valid mst
 })
 
 test_that("fit_glmboost is reproducible for a fixed seed", {
-    again <- fit_glmboost(train, binary_class = "y", seed = 1)
+    again <- fit_glmboost(train, binary_class = "y", seed = 1, cores = 2)
 
     expect_equal(mboost::mstop(again[[1]]), mboost::mstop(glmb[[1]]))
     expect_equal(coef(again[[1]]), coef(glmb[[1]]))
 })
 
 test_that("fit_glmboost restricts the model to the requested features", {
-    sub <- fit_glmboost(train, binary_class = "y", features = c("X1", "X2"), seed = 1)
+    sub <- fit_glmboost(train, binary_class = "y", features = c("X1", "X2"), seed = 1, cores = 2)
     learners <- setdiff(colnames(mboost::extract(sub[[1]], "design")), "(Intercept)")
 
     expect_setequal(learners, c("X1", "X2"))
@@ -103,7 +103,7 @@ test_that("make_gamboost_formula uses all other columns when features is NULL", 
 })
 
 test_that("fit_gamboost returns one gamboost model per data set", {
-    fits <- fit_gamboost(gam_fixture(2), binary_class = "y", features = c("age", "sex"), seed = 1)
+    fits <- fit_gamboost(gam_fixture(2), binary_class = "y", features = c("age", "sex"), seed = 1, cores = 2)
 
     expect_length(fits, 2)
     for (m in fits) {

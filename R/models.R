@@ -130,7 +130,7 @@ fit_adaptive_lasso <- function(data, binary_class, features = NULL) {
 #' The number of iterations starts at 50 and is increased in steps of 50 (up to 1000)
 #' until it exceeds 1.2 times the AIC-optimal number. The final number of iterations is
 #' then chosen by bootstrap resampling stratified by the outcome ([mboost::cvrisk()] with
-#' `mc.cores = 4`).
+#' `cores` cores).
 #'
 #' @param data A list of data.tables, one per data set. Each contains the two-level factor
 #'   `binary_class` (levels 0 and 1) and the predictors.
@@ -138,10 +138,11 @@ fit_adaptive_lasso <- function(data, binary_class, features = NULL) {
 #' @param features Character vector of the predictors to use. Default `NULL` uses all
 #'   columns except `binary_class`.
 #' @param seed Random seed, set once before all models are fitted. Default 1234.
+#' @param cores Number of cores used by [mboost::cvrisk()]. Default 4.
 #'
 #' @returns A list of [mboost::glmboost()] models, one per data set.
 #' @export
-fit_glmboost <- function(data, binary_class, features = NULL, seed = 1234) {
+fit_glmboost <- function(data, binary_class, features = NULL, seed = 1234, cores = 4) {
 
     set.seed(seed)
 
@@ -182,7 +183,7 @@ fit_glmboost <- function(data, binary_class, features = NULL, seed = 1234) {
                 # using resampling to search for the optimal iteration.
                 fit_cvrisk <- cvrisk(fit,
                                      folds = rsmp,
-                                     mc.cores = 4)
+                                     mc.cores = cores)
 
                 # obtain the optimal model according to mstop
                 mstop(fit) <- mstop(fit_cvrisk)
@@ -255,7 +256,7 @@ make_gamboost_formula <- function(data, binary_class, features = NULL) {
 #' The number of iterations starts at 50 and is increased in steps of 50 (up to 1000)
 #' until it exceeds 1.2 times the AIC-optimal number. The final number of iterations is
 #' then chosen by bootstrap resampling stratified by the outcome ([mboost::cvrisk()] with
-#' `mc.cores = 10`).
+#' `cores` cores).
 #'
 #' @param data A list of data.tables, one per data set. Each contains the two-level factor
 #'   `binary_class` (levels 0 and 1) and the predictors.
@@ -263,10 +264,11 @@ make_gamboost_formula <- function(data, binary_class, features = NULL) {
 #' @param features Character vector of the predictors to use. Default `NULL` uses all
 #'   columns except `binary_class`.
 #' @param seed Random seed, set once before all models are fitted. Default 1234.
+#' @param cores Number of cores used by [mboost::cvrisk()]. Default 10.
 #'
 #' @returns A list of [mboost::gamboost()] models, one per data set.
 #' @export
-fit_gamboost <- function(data, binary_class, features = NULL, seed = 1234) {
+fit_gamboost <- function(data, binary_class, features = NULL, seed = 1234, cores = 10) {
 
     set.seed(seed)
 
@@ -302,7 +304,7 @@ fit_gamboost <- function(data, binary_class, features = NULL, seed = 1234) {
                 # using resampling to search for the optimal iteration.
                 fit_cvrisk <- mboost::cvrisk(fit,
                                              folds = rsmp,
-                                             mc.cores = 10)
+                                             mc.cores = cores)
 
                 # set the mstop to optimal mstop
                 mboost::mstop(fit) <- mboost::mstop(fit_cvrisk)
