@@ -155,7 +155,75 @@ cpss_glmboost <- function(data, binary_class, features, iter, q, PFER, seed) {
         sampling.type = "SS",
         assumption = "unimod",
         folds = stabs_rsmp,
-        grid = 0:500
+        grid = 0:iter,
+        mc.cores = 2
+    )
+
+    return(mboost_stabsel)
+}
+
+
+#' Perform stability selection with gamboost
+#'
+#' @description
+#' The function runs complementary pairs stability selection using gamboost model as
+#' feature selection model.
+#'
+#' @param data  data
+#' @param binary_class  the name of the binary response variable
+#' @param features  a character vector of feature names to include in the model
+#' @param iter  number of boosting iterations
+#' @param q     number of (unique) selected variables that are selected on each subsample.
+#' @param PFER  upper bound for the per-family error rate.
+#' @param seed  random seed for reproducibility
+#'
+#' @returns stabsel object
+#' @export
+
+cpss_gamboost <- function(data, binary_class, features, iter, q, PFER, seed) {
+
+    if(!is.null(features)) {
+        model <- as.formula(paste0(binary_class, " ~ ."))
+    } else {
+        # create base-learner
+        blrns <- c(
+            paste0("bols(", c(features, "Age", "Sex"),
+                   ", intercept = FALSE)"), # centred
+            paste0("bbs(", c(features, "Age"),
+                   ", knots = 8, degree = 4, df = 1, center = TRUE)"), # centred
+            "bols(Intercept, intercept = FALSE)"
+        )
+
+        model <- as.formula(paste0(binary_class, " ~ ", paste(blrns, collapse = "+")))
+    }
+
+    # setting initial number of iteration
+    iter <- 50
+
+    # fit the logistic boosting model
+    fit <- mboost::gamboost(
+        formula = model,
+        data = cbind(data, Intercept = 1),
+        family = mboost::Binomial(link = "logit"),
+        control = mboost::boost_control(mstop = iter, nu = 0.1)
+        )
+
+    # stratified subsampling
+    stabs_rsmp <- subsample(
+        model.weights(fit),
+        B = 50,
+        strata = fit$response
+    )
+
+    mboost_stabsel <- stabsel(
+        fit,
+        q = q,
+        PFER = PFER,
+        sampling.type = "SS",
+        assumption = "unimod",
+        folds = stabs_rsmp,
+        grid = 0:iter,
+        mc.cores = 2
     )
 
     return(mboost_stabsel)
