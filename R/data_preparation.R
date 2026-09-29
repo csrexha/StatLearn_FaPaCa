@@ -40,6 +40,11 @@ binary_data_generator <- function(N, P, p_ref, tau, sigma, rho, link = "logit"){
 #' proportion
 #'
 #' @param n no. of simulation data sets
+#' @param N,P,p_ref,tau,sigma see \code{\link{binary_data_generator}}. Vectors are
+#'   expanded into one data set per element (times \code{n}).
+#' @param rho correlation. A vector is expanded into one data set per element,
+#'   like the other parameters. If \code{NULL} (default), one vector
+#'   \code{runif(10, 0.05, 0.95)} is drawn and used for every data set.
 #' @param seed seed for reproducibilty
 #'
 #' @returns list of data
@@ -57,7 +62,9 @@ get_simulated_data <- function(
     set.seed(seed)
 
     if (is.null(rho)) {
-        rho <- runif(10, 0.05, 0.95)
+        rho <- list(runif(10, 0.05, 0.95))
+    } else {
+        rho <- as.list(rho)
     }
 
     CJ(
@@ -67,7 +74,7 @@ get_simulated_data <- function(
         p_ref = p_ref,
         tau = tau,
         sigma = sigma,
-        rho = list(rho),
+        rho = rho,
         sorted = FALSE
         ) |>
         pmap(
@@ -98,12 +105,11 @@ get_stratified_cv_data <- function(data, seed) {
     cv_ind <- map(data, function(x) createDataPartition(x$y, p = 0.7, list = FALSE))
 
     ## standardise the training and test data ####
-    vars <- paste0("X", 1:500)
-
     simulated_data_rescaled <- map2(
         cv_ind,
         data,
         function(x, y){
+            vars <- setdiff(names(y), "y")
             dat <- copy(y)[, c(vars):=lapply(.SD, function(a) (a - mean(a[x]))/sd(a[x])), .SDcols=c(vars)]
             return(list(train = dat[x], test = dat[-x]))
         }

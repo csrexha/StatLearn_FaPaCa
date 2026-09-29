@@ -176,6 +176,47 @@ fit_glmboost <- function(data, binary_class, features = NULL, seed = 1234) {
     return(fit_list)
 }
 
+#' Build the formula of a gamboost model
+#'
+#' @description
+#' Every feature gets a linear base-learner (\code{bols}). Numeric features with more
+#' than two distinct values also get a centred smooth base-learner (\code{bbs}), so
+#' that the smooth term only captures the non-linear part. Binary and factor
+#' features get the linear base-learner only. An intercept base-learner
+#' (\code{bols(Intercept)}) is always added: the data passed to
+#' \code{\link[mboost]{gamboost}} must contain a column \code{Intercept = 1}.
+#'
+#' @param data A data frame
+#' @param binary_class The name of the binary class variable
+#' @param features A vector of feature names. Default is NULL, which means all
+#'   columns except \code{binary_class}.
+#'
+#' @returns A formula
+#' @noRd
+make_gamboost_formula <- function(data, binary_class, features = NULL) {
+
+    if (is.null(features)) {
+        features <- setdiff(names(data), binary_class)
+    }
+
+    is_smooth <- vapply(
+        features,
+        function(f) is.numeric(data[[f]]) && length(unique(data[[f]])) > 2,
+        logical(1)
+    )
+    smooth <- features[is_smooth]
+
+    blrns <- c(
+        paste0("bols(", features, ", intercept = FALSE)"),
+        if (length(smooth) > 0) {
+            paste0("bbs(", smooth, ", knots = 8, degree = 4, df = 1, center = TRUE)")
+        },
+        "bols(Intercept, intercept = FALSE)"
+    )
+
+    as.formula(paste0(binary_class, " ~ ", paste(blrns, collapse = " + ")))
+}
+
 #' Fit \code{\link[mboost]{gamboost}} model
 #'
 #' @description
@@ -197,23 +238,10 @@ fit_gamboost <- function(data, binary_class, features = NULL, seed = 1234) {
     set.seed(seed)
 
     fit_list <- data |>
-        purrr::pmap(
+        purrr::map(
             function(data) {
 
-                if(!is.null(features)) {
-                    model <- as.formula(paste0(binary_class, " ~ ."))
-                } else {
-                    # create base-learner
-                    blrns <- c(
-                        paste0("bols(", c(features, "Age", "Sex"),
-                               ", intercept = FALSE)"), # centred
-                        paste0("bbs(", c(features, "Age"),
-                               ", knots = 8, degree = 4, df = 1, center = TRUE)"), # centred
-                        "bols(Intercept, intercept = FALSE)"
-                    )
-
-                    model <- as.formula(paste0(binary_class, " ~ ", paste(blrns, collapse = "+")))
-                }
+                model <- make_gamboost_formula(data, binary_class, features)
 
                 # setting initial number of iteration
                 iter <- 50
@@ -355,9 +383,9 @@ get_glmboost_test_prediction <- function(model, newdata) {
 
     # obtain test result
     simdata_glmboost_testpred <- pmap(
-        list(model, newdata, 1:100),
+        list(model, newdata, seq_along(model)),
         function(x, y, z) data.table(
-            Simultaion = z,
+            Simulation = z,
             y = y$y,
             response = as.vector(predict(x, newdata = y, type = "response"))
         )
@@ -365,7 +393,7 @@ get_glmboost_test_prediction <- function(model, newdata) {
         rbindlist()
 
     # classify the test prediction
-    simdata_glmboost_testpred[, predict := factor(ifelse(response > .5, 1, 0))]
+    simdata_glmboost_testpred[, predict := factor(ifelse(response > .5, 1, 0), levels = c(0, 1))]
 
     return(simdata_glmboost_testpred)
 }

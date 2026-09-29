@@ -126,6 +126,8 @@ cpss_adaptive_lasso <- function(data, binary_class, features, q, PFER, seed) {
 
 cpss_glmboost <- function(data, binary_class, features, iter, q, PFER, seed) {
 
+    set.seed(seed)
+
     if(!is.null(features)) {
         model <- as.formula(paste0(binary_class, "~",
                                    paste(features, collapse = " + ")))
@@ -182,23 +184,9 @@ cpss_glmboost <- function(data, binary_class, features, iter, q, PFER, seed) {
 
 cpss_gamboost <- function(data, binary_class, features, iter, q, PFER, seed) {
 
-    if(!is.null(features)) {
-        model <- as.formula(paste0(binary_class, " ~ ."))
-    } else {
-        # create base-learner
-        blrns <- c(
-            paste0("bols(", c(features, "Age", "Sex"),
-                   ", intercept = FALSE)"), # centred
-            paste0("bbs(", c(features, "Age"),
-                   ", knots = 8, degree = 4, df = 1, center = TRUE)"), # centred
-            "bols(Intercept, intercept = FALSE)"
-        )
+    set.seed(seed)
 
-        model <- as.formula(paste0(binary_class, " ~ ", paste(blrns, collapse = "+")))
-    }
-
-    # setting initial number of iteration
-    iter <- 50
+    model <- make_gamboost_formula(data, binary_class, features)
 
     # fit the logistic boosting model
     fit <- mboost::gamboost(
