@@ -1,0 +1,75 @@
+name: check
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      _R_CHECK_FORCE_SUGGESTS_: "false"   # Suggests: StatLearn is not on CRAN
+      NOT_CRAN: "true"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: "4.6"                # matches rproject.toml / rv.lock
+
+      - uses: a2-ai/setup-rv@v1.0.0
+        with:
+          version: "0.23.1"               # same as locally and in the Dockerfile
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake libcurl4-openssl-dev libfontconfig1-dev libfreetype6-dev \
+            libfribidi-dev libgit2-dev libglpk-dev libharfbuzz-dev libicu-dev \
+            libpng-dev libtiff-dev libuv1-dev libwebp-dev libx11-dev libxml2-dev \
+            zlib1g-dev
+
+      - name: Restore R package cache
+        id: cache
+        uses: actions/cache/restore@v6
+        with:
+          path: rv/library
+          key: rv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rv.lock', 'rproject.toml') }}
+
+      - name: Install R packages (locked)
+        run: rv sync --locked
+
+      - name: Save R package cache
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: rv/library
+          key: ${{ steps.cache.outputs.cache-primary-key }}
+
+      - name: Activate rv library
+        run: rv activate
+
+      - name: Generate NAMESPACE and man pages   # both are gitignored
+        run: Rscript -e 'devtools::document()'
+
+      - name: R CMD check (also runs the test suite)
+        run: |
+          Rscript -e 'rcmdcheck::rcmdcheck(args = c("--no-manual"), error_on = "warning", check_dir = "check")'
+
+      - name: Upload check results
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: check-results
+          path: check/*.Rcheck

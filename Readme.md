@@ -3,6 +3,8 @@
 
 # StatLearn_FaPaCa
 
+[![check](https://github.com/csrexha/StatLearn_FaPaCa/actions/workflows/check.yaml/badge.svg)](https://github.com/csrexha/StatLearn_FaPaCa/actions/workflows/check.yaml)
+
 <p align="left">
 
 • <a href="#overview">Overview</a><br> • <a href="#data-sources">Data
@@ -68,7 +70,7 @@ parallel with `crew`.
 This repository is structured as follows:
 
 - [`DESCRIPTION`](DESCRIPTION): contains project metadata (authors,
-  date, dependencies, etc.)
+  date, dependencies, etc.). The R package is called `statlearnfapaca`
 
 - [`make.R`](make.R): restores the package environment, loads the
   project functions and runs both pipelines
