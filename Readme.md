@@ -97,9 +97,9 @@ This repository is structured as follows:
 
 - [`tests/`](tests): unit tests
 
-- [`Dockerfile`](Dockerfile), [`renv.lock`](renv.lock),
-  [`rproject.toml`](rproject.toml) and [`rv.lock`](rv.lock):
-  computational environment (Docker image, `renv` and `rv` lock files)
+- [`Dockerfile`](Dockerfile), [`rproject.toml`](rproject.toml) and
+  [`rv.lock`](rv.lock): computational environment (Docker image,
+  [`rv`](https://github.com/A2-ai/rv) dependency file and lock file)
 
 ## Installation
 
@@ -112,15 +112,22 @@ To install this compendium:
   your fork). Alternatively, open [RStudio
   IDE](https://posit.co/products/open-source/rstudio/) and create a New
   Project from Version Control.
-- Restore the R packages with `renv::restore()`. The project also
-  provides [`rv`](https://github.com/A2-ai/rv) files (`rproject.toml`,
-  `rv.lock`) and a `Dockerfile` based on `rocker/rstudio` for a
-  containerised setup.
+- Install [`rv`](https://github.com/A2-ai/rv), then install the R
+  packages listed in `rproject.toml` with `rv sync` (or by running
+  `source("make.R")`).
+
+Alternatively, build the Docker image (based on `rocker/rstudio`) and
+open RStudio at <http://localhost:8787> (user `rstudio`):
+
+``` bash
+docker build -t statlearn-fapaca .
+docker run -e PASSWORD=<choose-a-password> -p 8787:8787 statlearn-fapaca
+```
 
 ## Usage
 
-Restore the environment, load the project functions and run both
-pipelines with [`make.R`](make.R):
+Install the packages, load the project functions and run both pipelines
+with [`make.R`](make.R):
 
 ``` r
 source("make.R")
