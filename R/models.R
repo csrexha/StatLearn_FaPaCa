@@ -253,12 +253,12 @@ fit_gamboost <- function(data, binary_class, features = NULL, seed = 1234) {
                                         control = mboost::boost_control(mstop = iter, nu = 0.1))
 
                 # adjust the number of iteration using AIC (logit link only)
-                aic <- mboost::AIC(fit, method = "classical")
+                aic <- stats::AIC(fit, method = "classical")
 
                 while(iter <= mboost::mstop(aic) * 1.2 && iter < 1000){
                     iter <- iter + 50
                     mboost::mstop(fit) <- iter
-                    aic <- mboost::AIC(fit, method = "classical")
+                    aic <- stats::AIC(fit, method = "classical")
                 }
 
                 # set a resampling scheme.
@@ -298,9 +298,10 @@ extract_adalasso_selected_features <- function(model) {
     model |>
         imap(
             function(x, idx){
-                coef <- coef(x, s = "lambda.min")
-                return(data.table(Simulation = idx,
-                                  variable = rownames(coef)[c(summary(coef)$i)[-1]]))
+                coefs <- as.matrix(coef(x, s = "lambda.min"))
+                selected <- setdiff(rownames(coefs)[coefs[, 1] != 0], "(Intercept)")
+                return(data.table(Simulation = rep(idx, length(selected)),
+                                  variable = selected))
             }
         ) |>
         rbindlist()
