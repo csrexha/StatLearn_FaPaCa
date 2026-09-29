@@ -4,11 +4,13 @@
 #' This function fits a ridge regression model to each dataset in the provided list of data.
 #'
 #' @param data A list of data frames
+#' @param binary_class The name of the binary class variable
+#' @param features A vector of feature names
 #'
 #' @returns A list of fitted ridge regression models
 #' @export
 
-fit_ridge <- function(data) {
+fit_ridge <- function(data, binary_class, features = NULL) {
 
     ## perform ridge regression / L2-regularisation ####
     data |>
@@ -16,8 +18,13 @@ fit_ridge <- function(data) {
             function(data) {
 
                 # convert data to matrix
-                xmat <- as.matrix(data[, -1])
-                y <- data$y
+                if(!is.null(features)) {
+                    xmat <- as.matrix(data[, ..features])
+                } else {
+                    xmat <- as.matrix(data[, !..binary_class])
+                }
+
+                y <- as.numeric(data[[binary_class]]) - 1
 
                 # assign weights
                 w0 <- 0.5*length(y)/sum(y == 0)
@@ -47,17 +54,25 @@ fit_ridge <- function(data) {
 #' The function returns a list of fitted models for each dataset.
 #'
 #' @param data A list of data frames
+#' @param binary_class The name of the binary class variable
+#' @param features A vector of feature names
 #'
 #' @returns A list of fitted adaptive lasso models
 #' @export
 
-fit_adaptive_lasso <- function(data) {
+fit_adaptive_lasso <- function(data, binary_class, features = NULL) {
     data |>
         map(
             function(data) {
+
                 # convert data to matrix
-                xmat <- as.matrix(data[, -1])
-                y <- data$y
+                if(!is.null(features)) {
+                    xmat <- as.matrix(data[, ..features])
+                } else {
+                    xmat <- as.matrix(data[, !..binary_class])
+                }
+
+                y <- as.numeric(data[[binary_class]]) - 1
 
                 # assign weights
                 w0 <- 0.5 * length(y)/sum(y == 0)
@@ -91,30 +106,43 @@ fit_adaptive_lasso <- function(data) {
 }
 
 
-#' Fit glmboost model
+#' Fit \code{\link[mboost]{glmboost}} model
 #'
 #' @description
-#' This function fits a glmboost model to each dataset in the provided list
+#' This function fits a \code{\link[mboost]{glmboost}} model to each dataset in the provided list
 #' of simulation data. It first sets an initial number of iterations,
 #' fits the logistic boosting model, and then adjusts the number of iterations using AIC.
 #' The function also uses resampling to search for the optimal iteration.
 #' Finally, it returns a list of fitted models for each dataset.
 #'
 #' @param data A list of data frames
+#' @param binary_class The name of the binary class variable
+#' @param features A vector of feature names. Default is NULL, which means all features will be used in the model.
+#' @param seed A random seed for reproducibility. Default 1234
 #'
-#' @returns A list of fitted glmboost models
+#' @returns A list of fitted \code{\link[mboost]{glmboost}} models
 #' @export
 
-fit_glmboost <- function(data) {
+fit_glmboost <- function(data, binary_class, features = NULL, seed = 1234) {
 
-    data |>
+    set.seed(seed)
+
+    fit_list <- data |>
         map(
             function(data) {
+
+                if(!is.null(features)) {
+                    model <- as.formula(paste0(binary_class, "~",
+                                              paste(features, collapse = " + ")))
+                } else {
+                    model <- formula(paste0(binary_class, "~ ."))
+                }
+
                 # setting initial number of iteration
                 iter <- 50
 
                 # fit the logistic boosting model
-                fit <- glmboost(y ~ .,
+                fit <- glmboost(model,
                                 data = data,
                                 family = Binomial(type = "adaboost", link = "logit"),
                                 control = boost_control(mstop = iter, nu = 0.1))
@@ -159,7 +187,6 @@ fit_glmboost <- function(data) {
 #'
 #' @returns A data table containing the selected features for each model
 #' @export
-
 extract_adalasso_selected_features <- function(model) {
 
     model |>
@@ -184,7 +211,6 @@ extract_adalasso_selected_features <- function(model) {
 #'
 #' @returns A data table containing the variable importance for each model
 #' @export
-
 extract_glmboost_varimp <- function(model) {
 
     ## extract variable importance of each fold ####
@@ -219,7 +245,6 @@ extract_glmboost_varimp <- function(model) {
 #'
 #' @returns A data table containing the test predictions for each model
 #' @export
-
 get_adalasso_test_prediction <- function(model, newdata) {
 
     # obtain test results
@@ -248,7 +273,6 @@ get_adalasso_test_prediction <- function(model, newdata) {
 #'
 #' @returns A data table containing the test predictions for each model
 #' @export
-
 get_glmboost_test_prediction <- function(model, newdata) {
 
     # obtain test result
@@ -278,7 +302,6 @@ get_glmboost_test_prediction <- function(model, newdata) {
 #'
 #' @returns A data table containing the test predictions for each model
 #' @export
-
 get_ridge_test_prediction <- function(model, newdata) {
 
     # obtain test results
