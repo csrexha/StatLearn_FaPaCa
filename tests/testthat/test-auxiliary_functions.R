@@ -28,6 +28,14 @@ test_that("predict_result computes eta as offset plus the base learner contribut
     expect_true(all(out$response > 0 & out$response < 1))
 })
 
+test_that("predict_result: response is plogis(2 * eta) when all base-learners are requested", {
+    fx <- predict_fixture()
+    # mboost's Binomial() works on the half-log-odds scale; the intercept is a base-learner too
+    out <- predict_result(fx$fit, fx$data, fx$data, bl = c("(Intercept)", "x1", "x2"))
+
+    expect_equal(out$response, plogis(2 * out$eta))
+})
+
 test_that("predict_result keeps only the requested cols and accepts several links", {
     fx <- predict_fixture()
 
@@ -36,4 +44,46 @@ test_that("predict_result keeps only the requested cols and accepts several link
 
     expect_no_error(predict_result(fx$fit, fx$data, fx$data, bl = "x1", link = "probit"))
     expect_no_error(predict_result(fx$fit, fx$data, fx$data, bl = "x1", link = plogis))
+})
+
+# summarySE ------------------------------------------------------------------
+
+summary_fixture <- function() {
+    data.frame(g = rep(c("a", "b"), each = 4),
+               v = c(1, 2, 3, 4, 10, 12, 14, 16))
+}
+
+test_that("summarySE summarises a variable by group", {
+    out <- summarySE(summary_fixture(), measurevar = "v", groupvars = "g")
+
+    expect_equal(nrow(out), 2)
+    expect_named(out, c("g", "N", "v", "sd", "se", "ci"))
+    expect_equal(out$N, c(4, 4))
+    expect_equal(out$v, c(2.5, 13))
+    expect_equal(out$sd, c(sd(1:4), sd(c(10, 12, 14, 16))))
+    expect_equal(out$se, out$sd / sqrt(out$N))
+    expect_equal(out$ci, out$se * qt(0.975, out$N - 1))
+})
+
+test_that("summarySE handles missing values and the confidence level", {
+    d <- summary_fixture()
+    d$v[1] <- NA
+
+    expect_true(is.na(summarySE(d, "v", "g")$v[1]))
+
+    out <- summarySE(d, "v", "g", na.rm = TRUE)
+    expect_equal(out$N, c(3, 4))
+    expect_equal(out$v[1], mean(2:4))
+
+    narrow <- summarySE(summary_fixture(), "v", "g", conf.interval = 0.8)
+    wide   <- summarySE(summary_fixture(), "v", "g", conf.interval = 0.99)
+    expect_true(all(narrow$ci < wide$ci))
+})
+
+test_that("summarySE without grouping variables summarises all rows", {
+    out <- summarySE(summary_fixture(), measurevar = "v")
+
+    expect_equal(nrow(out), 1)
+    expect_equal(out$N, 8)
+    expect_equal(out$v, mean(summary_fixture()$v))
 })

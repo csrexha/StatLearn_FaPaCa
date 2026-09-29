@@ -10,7 +10,8 @@
 #' the predicted probability is `plogis(2 * eta)`. `eta` is the sum of `offset` and the
 #' contributions of the base-learners in `bl` only; it equals the full linear predictor
 #' (and `response` equals `plogis(2 * eta)`) only if `bl` contains every selected
-#' base-learner.
+#' base-learner, including the intercept base-learner (`"(Intercept)"` for
+#' [mboost::glmboost()]).
 #'
 #' @param fit A fitted mboost model, e.g. from [fit_glmboost()] or [fit_gamboost()].
 #' @param data A data.table with the identifier columns `cols` and one row per row of
@@ -89,7 +90,7 @@ summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
                          )
 
     # Rename the "mean" column
-    datac <- rename(datac, c("mean" = measurevar))
+    datac <- plyr::rename(datac, c("mean" = measurevar))
 
     datac$se <- datac$sd / sqrt(datac$N)  # Calculate standard error of the mean
 
