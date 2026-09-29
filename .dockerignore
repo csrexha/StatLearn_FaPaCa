@@ -17,3 +17,11 @@ renv/local
 # RStudio files ----
 *.Rproj
 .Rproj.user/
+
+# Pipeline results and local environment ----
+_targets/
+outputs/*
+!outputs/README.md
+.quarto/
+.Rprofile
+rv/

@@ -21,6 +21,11 @@ README.html
 inst/doc
 man/
 NAMESPACE
-renv/
 .Rprofile
 rv/
+
+# Pipeline results (rebuilt by make.R) ----
+_targets/
+outputs/*
+!outputs/README.md
+.quarto/

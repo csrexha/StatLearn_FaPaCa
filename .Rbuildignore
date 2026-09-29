@@ -1,5 +1,6 @@
-^renv$
-^renv\.lock$
+^rv$
+^rv\.lock$
+^rproject\.toml$
 ^StatLearn_FaPaCa\.Rproj$
 ^\.Rproj\.user$
 ^\.DS_Store$
@@ -11,3 +12,8 @@
 ^manuscript$
 ^make\.R$
 ^\.Rprofile$
+^README\.Rmd$
+^README\.html$
+^Dockerfile$
+^\.dockerignore$
+^\.posit/assistant$
