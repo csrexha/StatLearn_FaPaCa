@@ -1,15 +1,23 @@
-#' Fit ridge regression model
+#' Fit ridge regression models
 #'
 #' @description
-#' This function fits a ridge regression model to each dataset in the provided list of data.
+#' Fits a ridge-penalised logistic regression ([glmnet::cv.glmnet()] with `alpha = 0`) to
+#' each data set in a list.
 #'
-#' @param data A list of data frames
-#' @param binary_class The name of the binary class variable
-#' @param features A vector of feature names
+#' @details
+#' The penalty is chosen by 5-fold cross-validation of the binomial deviance over 500
+#' lambda values. Observations are weighted so that both classes carry the same total
+#' weight. The folds are drawn at random from the current RNG state (there is no `seed`
+#' argument).
 #'
-#' @returns A list of fitted ridge regression models
+#' @param data A list of data.tables, one per data set. Each contains the two-level factor
+#'   `binary_class` (levels 0 and 1) and the predictors.
+#' @param binary_class Name of the binary outcome column.
+#' @param features Character vector of the predictors to use. Default `NULL` uses all
+#'   columns except `binary_class`.
+#'
+#' @returns A list of [glmnet::cv.glmnet()] objects, one per data set.
 #' @export
-
 fit_ridge <- function(data, binary_class, features = NULL) {
 
     ## perform ridge regression / L2-regularisation ####
@@ -45,21 +53,27 @@ fit_ridge <- function(data, binary_class, features = NULL) {
         )
 }
 
-#' Fit adaptive lasso model
+#' Fit adaptive lasso models
 #'
 #' @description
-#' The function fits an adaptive lasso model to each dataset in the provided
-#' list of data. It first estimates the penalty factors using ridge regression
-#' and then fits the adaptive lasso model using these weights.
-#' The function returns a list of fitted models for each dataset.
+#' Fits an adaptive lasso logistic regression to each data set in a list, in two steps:
+#' a ridge regression ([glmnet::cv.glmnet()] with `alpha = 0`) gives the coefficients at
+#' `lambda.min`, from which the penalty factors `1 / |coefficient|^2` are computed; then
+#' a lasso ([glmnet::cv.glmnet()] with `alpha = 1`) is fitted with these penalty factors.
 #'
-#' @param data A list of data frames
-#' @param binary_class The name of the binary class variable
-#' @param features A vector of feature names
+#' @details
+#' Both steps use 500 lambda values, class weights that give both classes the same total
+#' weight, and the same 5 cross-validation folds. The folds are drawn at random from the
+#' current RNG state (there is no `seed` argument).
 #'
-#' @returns A list of fitted adaptive lasso models
+#' @param data A list of data.tables, one per data set. Each contains the two-level factor
+#'   `binary_class` (levels 0 and 1) and the predictors.
+#' @param binary_class Name of the binary outcome column.
+#' @param features Character vector of the predictors to use. Default `NULL` uses all
+#'   columns except `binary_class`.
+#'
+#' @returns A list of [glmnet::cv.glmnet()] objects, one per data set.
 #' @export
-
 fit_adaptive_lasso <- function(data, binary_class, features = NULL) {
     data |>
         map(
@@ -106,23 +120,27 @@ fit_adaptive_lasso <- function(data, binary_class, features = NULL) {
 }
 
 
-#' Fit \code{\link[mboost]{glmboost}} model
+#' Fit glmboost models
 #'
 #' @description
-#' This function fits a \code{\link[mboost]{glmboost}} model to each dataset in the provided list
-#' of simulation data. It first sets an initial number of iterations,
-#' fits the logistic boosting model, and then adjusts the number of iterations using AIC.
-#' The function also uses resampling to search for the optimal iteration.
-#' Finally, it returns a list of fitted models for each dataset.
+#' Fits a logistic [mboost::glmboost()] model (`Binomial(type = "adaboost")`, step length
+#' `nu = 0.1`) to each data set in a list and chooses the number of boosting iterations.
 #'
-#' @param data A list of data frames
-#' @param binary_class The name of the binary class variable
-#' @param features A vector of feature names. Default is NULL, which means all features will be used in the model.
-#' @param seed A random seed for reproducibility. Default 1234
+#' @details
+#' The number of iterations starts at 50 and is increased in steps of 50 (up to 1000)
+#' until it exceeds 1.2 times the AIC-optimal number. The final number of iterations is
+#' then chosen by bootstrap resampling stratified by the outcome ([mboost::cvrisk()] with
+#' `mc.cores = 4`).
 #'
-#' @returns A list of fitted \code{\link[mboost]{glmboost}} models
+#' @param data A list of data.tables, one per data set. Each contains the two-level factor
+#'   `binary_class` (levels 0 and 1) and the predictors.
+#' @param binary_class Name of the binary outcome column.
+#' @param features Character vector of the predictors to use. Default `NULL` uses all
+#'   columns except `binary_class`.
+#' @param seed Random seed, set once before all models are fitted. Default 1234.
+#'
+#' @returns A list of [mboost::glmboost()] models, one per data set.
 #' @export
-
 fit_glmboost <- function(data, binary_class, features = NULL, seed = 1234) {
 
     set.seed(seed)
@@ -217,21 +235,36 @@ make_gamboost_formula <- function(data, binary_class, features = NULL) {
     as.formula(paste0(binary_class, " ~ ", paste(blrns, collapse = " + ")))
 }
 
-#' Fit \code{\link[mboost]{gamboost}} model
+#' Fit gamboost models
 #'
 #' @description
-#' This function fits a \code{\link[mboost]{gamboost}} model to each dataset in the provided list
-#' of simulation data. It first sets an initial number of iterations,
-#' fits the logistic boosting model, and then adjusts the number of iterations using AIC.
-#' The function also uses resampling to search for the optimal iteration.
-#' Finally, it returns a list of fitted models for each dataset.
+#' Fits a logistic [mboost::gamboost()] model (`Binomial(link = "logit")`, step length
+#' `nu = 0.1`) to each data set in a list and chooses the number of boosting iterations.
+#' Every feature gets a linear base-learner and numeric features also a centred smooth
+#' base-learner; see the details.
 #'
-#' @param data A list of data frames
-#' @param binary_class The name of the binary class variable
-#' @param features A vector of feature names. Default is NULL, which means all features will be used in the model.
-#' @param seed A random seed for reproducibility. Default 1234
+#' @details
+#' The base-learners are built by an internal helper: every feature gets a linear
+#' `bols(x, intercept = FALSE)` learner, numeric features with more than two distinct
+#' values also get a centred smooth `bbs(x, knots = 8, degree = 4, df = 1, center = TRUE)`
+#' learner, and an intercept learner `bols(Intercept, intercept = FALSE)` is added. The
+#' column `Intercept` is added to the data internally, so the data must not contain a
+#' column with that name. Because the linear learners have no intercept, the features
+#' should be centred.
 #'
-#' @returns A list of fitted \code{\link[mboost]{gamboost}} models
+#' The number of iterations starts at 50 and is increased in steps of 50 (up to 1000)
+#' until it exceeds 1.2 times the AIC-optimal number. The final number of iterations is
+#' then chosen by bootstrap resampling stratified by the outcome ([mboost::cvrisk()] with
+#' `mc.cores = 10`).
+#'
+#' @param data A list of data.tables, one per data set. Each contains the two-level factor
+#'   `binary_class` (levels 0 and 1) and the predictors.
+#' @param binary_class Name of the binary outcome column.
+#' @param features Character vector of the predictors to use. Default `NULL` uses all
+#'   columns except `binary_class`.
+#' @param seed Random seed, set once before all models are fitted. Default 1234.
+#'
+#' @returns A list of [mboost::gamboost()] models, one per data set.
 #' @export
 fit_gamboost <- function(data, binary_class, features = NULL, seed = 1234) {
 
@@ -281,17 +314,17 @@ fit_gamboost <- function(data, binary_class, features = NULL, seed = 1234) {
     return(fit_list)
 }
 
-#' Extract selected features from adaptive lasso model
+#' Extract the selected features of adaptive lasso models
 #'
 #' @description
-#' This function extracts the selected features from each fitted adaptive lasso model
-#' in the provided list of models. It retrieves the coefficients at the optimal lambda value
-#' and returns a data table containing the simulation index and the names of
-#' the selected variables.
+#' Extracts, for each fitted model, the predictors with a non-zero coefficient at
+#' `lambda.min`.
 #'
-#' @param model A list of fitted adaptive lasso models
+#' @param model A list of [glmnet::cv.glmnet()] models, e.g. from [fit_adaptive_lasso()].
 #'
-#' @returns A data table containing the selected features for each model
+#' @returns A data.table with the columns `Simulation` (position of the model in the list)
+#'   and `variable` (name of a selected predictor). A model that selects nothing
+#'   contributes no rows.
 #' @export
 extract_adalasso_selected_features <- function(model) {
 
@@ -309,14 +342,22 @@ extract_adalasso_selected_features <- function(model) {
 
 
 
-#' Extract variable importance from glmboost model
+#' Extract the variable importance of glmboost models
 #'
 #' @description
-#' This function extracts the variable importance from each fitted glmboost model.
+#' Extracts the variable importance ([mboost::varimp()]) of each fitted model and keeps the
+#' variables with a positive risk reduction.
 #'
-#' @param model A list of fitted glmboost models
+#' @details
+#' The importance is summarised by variable, base-learner and model. glmboost has one
+#' base-learner per variable, so each group contains a single row and `selfreq` is 1.
 #'
-#' @returns A data table containing the variable importance for each model
+#' @param model A list of [mboost::glmboost()] models, e.g. from [fit_glmboost()].
+#'
+#' @returns A data.table sorted by decreasing `selfreq`, with the columns `Variable`,
+#'   `blearner`, `Simulation` (position of the model in the list), `mrd` (mean risk
+#'   reduction), `msf` (mean relative selection frequency) and `selfreq` (number of rows
+#'   summarised).
 #' @export
 extract_glmboost_varimp <- function(model) {
 
@@ -342,15 +383,19 @@ extract_glmboost_varimp <- function(model) {
     return(glmboost_varimp_summary)
 }
 
-#' Estimate test predictions from fitted adpative lasso model
+#' Predict the test sets with adaptive lasso models
 #'
 #' @description
-#' This function estimates the test predictions from each fitted adaptive lasso model.
+#' Predicts each test set with the corresponding fitted adaptive lasso model at
+#' `lambda.min`.
 #'
-#' @param model A list of fitted adaptive lasso models
-#' @param newdata A list of new data tables for prediction
+#' @param model A list of [glmnet::cv.glmnet()] models, e.g. from [fit_adaptive_lasso()].
+#' @param newdata A list of data.tables, one per model in the same order. The outcome
+#'   column `y` must be the first column, followed by the predictors used in the model.
 #'
-#' @returns A data table containing the test predictions for each model
+#' @returns A data.table with one row per test observation, stacked over the models, with
+#'   the columns `y` (observed outcome, factor), `response` (predicted probability) and
+#'   `predict` (predicted class, factor with levels 0 and 1, threshold 0.5).
 #' @export
 get_adalasso_test_prediction <- function(model, newdata) {
 
@@ -370,15 +415,19 @@ get_adalasso_test_prediction <- function(model, newdata) {
         rbindlist()
 }
 
-#' Estimate test predictions from fitted glmboost model
+#' Predict the test sets with glmboost models
 #'
 #' @description
-#' This function estimates the test predictions from each fitted glmboost model.
+#' Predicts each test set with the corresponding fitted glmboost model.
 #'
-#' @param model A list of fitted glmboost models
-#' @param newdata A list of new data tables for prediction
+#' @param model A list of [mboost::glmboost()] models, e.g. from [fit_glmboost()].
+#' @param newdata A list of data.tables, one per model in the same order, containing the
+#'   outcome column `y` and the predictors used in the model.
 #'
-#' @returns A data table containing the test predictions for each model
+#' @returns A data.table with one row per test observation, stacked over the models, with
+#'   the columns `Simulation` (position of the model in the list), `y` (observed outcome),
+#'   `response` (predicted probability) and `predict` (predicted class, factor with
+#'   levels 0 and 1, threshold 0.5).
 #' @export
 get_glmboost_test_prediction <- function(model, newdata) {
 
@@ -399,15 +448,19 @@ get_glmboost_test_prediction <- function(model, newdata) {
     return(simdata_glmboost_testpred)
 }
 
-#' Estimate test predictions from fitted ridge regression model
+#' Predict the test sets with ridge regression models
 #'
 #' @description
-#' This function estimates the test predictions from each fitted ridge regression model.
+#' Predicts each test set with the corresponding fitted ridge regression model at
+#' `lambda.min`.
 #'
-#' @param model A list of fitted ridge regression models
-#' @param newdata A list of new data tables for prediction
+#' @param model A list of [glmnet::cv.glmnet()] models, e.g. from [fit_ridge()].
+#' @param newdata A list of data.tables, one per model in the same order. The outcome
+#'   column `y` must be the first column, followed by the predictors used in the model.
 #'
-#' @returns A data table containing the test predictions for each model
+#' @returns A data.table with one row per test observation, stacked over the models, with
+#'   the columns `y` (observed outcome, factor), `response` (predicted probability) and
+#'   `predict` (predicted class, factor with levels 0 and 1, threshold 0.5).
 #' @export
 get_ridge_test_prediction <- function(model, newdata) {
 

@@ -1,15 +1,31 @@
-#' Generate mboost prediction
+#' Predict with an mboost model, split by base-learner
 #'
-#' @param fit fitted mboost model
-#' @param data training data
-#' @param newdata test data
-#' @param bl base learner
-#' @param link link function
-#' @param cols columns to keep in the output
+#' @description
+#' Predicts the linear predictor of a fitted mboost model for `newdata`, in total and
+#' split by base-learner, together with the predicted probability, and attaches
+#' identifier columns.
 #'
-#' @returns A data.table with predictions and other relevant information
+#' @details
+#' For [mboost::Binomial()] the linear predictor `eta` is on the half-log-odds scale, so
+#' the predicted probability is `plogis(2 * eta)`. `eta` is the sum of `offset` and the
+#' contributions of the base-learners in `bl` only; it equals the full linear predictor
+#' (and `response` equals `plogis(2 * eta)`) only if `bl` contains every selected
+#' base-learner.
+#'
+#' @param fit A fitted mboost model, e.g. from [fit_glmboost()] or [fit_gamboost()].
+#' @param data A data.table with the identifier columns `cols` and one row per row of
+#'   `newdata`, in the same order (typically `newdata` itself).
+#' @param newdata Data to predict for, passed to [stats::predict()].
+#' @param bl Character vector of base-learner names whose contributions are returned
+#'   (`which` in [mboost::predict.mboost()]).
+#' @param link Currently not used, kept for backward compatibility. `response` is always
+#'   the prediction on the response scale of the model.
+#' @param cols Character vector of columns of `data` to keep in the output.
+#'
+#' @returns A data.table with one row per row of `newdata` and the columns `cols`,
+#'   `offset`, one column per base-learner in `bl`, `eta` (`offset` plus the
+#'   base-learner contributions) and `response` (predicted probability).
 #' @export
-
 predict_result <- function(fit, data, newdata, bl, link = "logit",
 							cols = c("ID", "Status", "FamilyID", "Clinical_Findings")){
   # prediction of each base leaner
@@ -31,19 +47,26 @@ predict_result <- function(fit, data, newdata, bl, link = "logit",
                     response = as.vector(rsp)))
 }
 
-#' Title
+#' Summarise a variable by groups
 #'
-#' @param data
-#' @param measurevar
-#' @param groupvars
-#' @param na.rm
-#' @param conf.interval
-#' @param .drop
+#' @description
+#' Summarises a numeric variable by groups: number of observations, mean, standard
+#' deviation, standard error of the mean and confidence interval of the mean.
 #'
-#' @returns
+#' @param data A data.frame.
+#' @param measurevar Name of the numeric column to summarise.
+#' @param groupvars Character vector of the grouping columns. Default `NULL`, no grouping
+#'   variables.
+#' @param na.rm Whether to ignore missing values. Default `FALSE`.
+#' @param conf.interval Confidence level of the interval. Default 0.95.
+#' @param .drop Whether to drop combinations of the grouping variables without
+#'   observations, passed to [plyr::ddply()]. Default `TRUE`.
+#'
+#' @returns A data.frame with one row per group: the grouping columns, `N`, the mean
+#'   (named after `measurevar`), `sd`, `se` (standard error of the mean) and `ci` (half
+#'   width of the confidence interval, from the t distribution with `N - 1` degrees of
+#'   freedom).
 #' @export
-#'
-#' @examples
 summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
                       conf.interval=.95, .drop=TRUE) {
 

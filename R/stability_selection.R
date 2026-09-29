@@ -1,15 +1,30 @@
-#' Adaptive lasso for stability selection
+#' Adaptive lasso fitting function for stability selection
 #'
-#' @param x dependent variable matrix
-#' @param y independent variable vector
-#' @param q Coefficient-count cap: limit the maximum number of variables in the model at any lambda.
-#' @param l2_lambda lambda for the ridge regression (to determine the penalty factor)
-#' @param type conservative or anticonservative
-#' @param family family for the glm
-#' @param weighted the observations should be weighted or not. Default TRUE
-#' @param gamma gamma for penalty factor. The higher the gamma, the more aggressive the penalty factor. Default 2.
+#' @description
+#' Fitting function for [stabs::stabsel()]. A ridge regression at the fixed penalty
+#' `l2_lambda` gives adaptive weights `1 / |coefficient|^gamma`, rescaled to sum to
+#' `ncol(x)`. An adaptive lasso path with these penalty factors is then fitted and the
+#' variables selected at the end of the path are returned.
 #'
-#' @returns list of selected variables and the selection paths
+#' @param x Numeric matrix of predictors, with column names.
+#' @param y Numeric binary outcome vector (0 and 1).
+#' @param q Maximum number of selected variables. For `type = "conservative"` at most `q`
+#'   coefficients may be non-zero (`pmax = q`), for `"anticonservative"` the degrees of
+#'   freedom are limited to `q - 1` (`dfmax = q - 1`).
+#' @param l2_lambda Penalty of the ridge regression used to compute the adaptive weights.
+#' @param type `"conservative"` (default) or `"anticonservative"`.
+#' @param family Family of the generalised linear model, e.g. `"binomial"`.
+#' @param weighted Whether observations are weighted so that both classes carry the same
+#'   total weight. Default `TRUE`.
+#' @param gamma Exponent of the adaptive weights. The larger the value, the more
+#'   aggressive the penalty factors. Default 2.
+#' @param ... Further arguments passed to both [glmnet::glmnet()] calls, e.g.
+#'   `standardize`.
+#'
+#' @returns A list with `selected`, a named logical vector of length `ncol(x)`, and
+#'   `path`, a logical matrix (variables in rows, lambda values in columns) marking the
+#'   non-zero coefficients along the path.
+#' @seealso [stabs::stabsel()]
 #' @export
 glmnet.adalasso <- function(x, y, q, l2_lambda, type = c("conservative", "anticonservative"),
                             family, weighted = TRUE, gamma = 2, ...) {
@@ -54,20 +69,30 @@ glmnet.adalasso <- function(x, y, q, l2_lambda, type = c("conservative", "antico
     return(list(selected = ret, path = sequence))
 }
 
-#' Perform stability selection with adaptive lasso
+#' Stability selection with adaptive lasso
 #'
 #' @description
-#' The function runs complementary pairs stability selection using adaptive lasso model as
-#' feature selection model.
+#' Runs complementary pairs stability selection ([stabs::stabsel()], `sampling.type = "SS"`)
+#' with the adaptive lasso ([glmnet.adalasso()]) as the selection method.
 #'
-#' @param data  data
-#' @param binary_class  the name of the binary response variable
-#' @param features  a character vector of feature names to include in the model
-#' @param q     number of (unique) selected variables that are selected on each subsample.
-#' @param seed  random seed for reproducibility
-#' @param PFER  upper bound for the per-family error rate.
+#' @details
+#' Uses 50 subsamples stratified by the outcome, the unimodality assumption, a ridge
+#' penalty of 10 for the adaptive weights, `gamma = 2` and class weights. The data are
+#' not standardised inside the fit (`standardize = FALSE`).
 #'
-#' @returns stabsel object
+#' @param data A data.table with the outcome column `binary_class` (two-level factor with
+#'   levels 0 and 1) and the predictors.
+#' @param binary_class Name of the binary outcome column.
+#' @param features Character vector of the predictors to use. `NULL` uses all columns
+#'   except `binary_class`.
+#' @param q Number of (unique) variables selected on each subsample. Together with
+#'   `PFER` and the number of variables `p` it must satisfy `q^2 < p * PFER`, otherwise
+#'   the selection threshold exceeds 1 and [stabs::stabsel()] fails.
+#' @param PFER Upper bound for the per-family error rate.
+#' @param seed Random seed for the subsampling.
+#'
+#' @returns A [stabs::stabsel()] object.
+#' @seealso [stabs::stabsel()]
 #' @export
 cpss_adaptive_lasso <- function(data, binary_class, features, q, PFER, seed) {
 
@@ -108,23 +133,33 @@ cpss_adaptive_lasso <- function(data, binary_class, features, q, PFER, seed) {
     return(simdata_stabsel)
 }
 
-#' Perform stability selection with glmboost
+#' Stability selection with glmboost
 #'
 #' @description
-#' The function runs complementary pairs stability selection using glmboost model as
-#' feature selection model.
+#' Runs complementary pairs stability selection ([stabs::stabsel()], `sampling.type = "SS"`)
+#' with [mboost::glmboost()] as the selection method.
 #'
-#' @param data  data
-#' @param binary_class  the name of the binary response variable
-#' @param features  a character vector of feature names to include in the model
-#' @param iter  number of boosting iterations
-#' @param q     number of (unique) selected variables that are selected on each subsample.
-#' @param PFER  upper bound for the per-family error rate.
-#' @param seed  random seed for reproducibility
+#' @details
+#' Uses 50 subsamples stratified by the outcome, the unimodality assumption, a logistic
+#' `Binomial(type = "adaboost")` model with step length `nu = 0.1`, the iteration grid
+#' `0:iter` and 2 cores. If `iter` is too small to select `q` base-learners in some
+#' subsamples, [stabs::stabsel()] warns; increase `iter` then.
 #'
-#' @returns stabsel object
+#' @param data A data.table with the outcome column `binary_class` (two-level factor) and
+#'   the predictors.
+#' @param binary_class Name of the binary outcome column.
+#' @param features Character vector of the predictors to use. `NULL` uses all columns
+#'   except `binary_class`.
+#' @param iter Number of boosting iterations.
+#' @param q Number of (unique) variables selected on each subsample. Together with
+#'   `PFER` and the number of variables `p` it must satisfy `q^2 < p * PFER`, otherwise
+#'   the selection threshold exceeds 1 and [stabs::stabsel()] fails.
+#' @param PFER Upper bound for the per-family error rate.
+#' @param seed Random seed for the subsampling.
+#'
+#' @returns A [stabs::stabsel()] object. The intercept counts as a base-learner.
+#' @seealso [stabs::stabsel()]
 #' @export
-
 cpss_glmboost <- function(data, binary_class, features, iter, q, PFER, seed) {
 
     set.seed(seed)
@@ -166,23 +201,34 @@ cpss_glmboost <- function(data, binary_class, features, iter, q, PFER, seed) {
 }
 
 
-#' Perform stability selection with gamboost
+#' Stability selection with gamboost
 #'
 #' @description
-#' The function runs complementary pairs stability selection using gamboost model as
-#' feature selection model.
+#' Runs complementary pairs stability selection ([stabs::stabsel()], `sampling.type = "SS"`)
+#' with [mboost::gamboost()] as the selection method.
 #'
-#' @param data  data
-#' @param binary_class  the name of the binary response variable
-#' @param features  a character vector of feature names to include in the model
-#' @param iter  number of boosting iterations
-#' @param q     number of (unique) selected variables that are selected on each subsample.
-#' @param PFER  upper bound for the per-family error rate.
-#' @param seed  random seed for reproducibility
+#' @details
+#' The base-learners are the same as in [fit_gamboost()] (linear for every feature, centred
+#' smooth for numeric features, intercept). Uses 50 subsamples stratified by the outcome,
+#' the unimodality assumption, step length `nu = 0.1`, the iteration grid `0:iter` and 2
+#' cores. If `iter` is too small to select `q` base-learners in some subsamples,
+#' [stabs::stabsel()] warns; increase `iter` then.
 #'
-#' @returns stabsel object
+#' @param data A data.table with the outcome column `binary_class` (two-level factor) and
+#'   the predictors. It must not contain a column named `Intercept`.
+#' @param binary_class Name of the binary outcome column.
+#' @param features Character vector of the predictors to use. `NULL` uses all columns
+#'   except `binary_class`.
+#' @param iter Number of boosting iterations.
+#' @param q Number of (unique) variables selected on each subsample. Together with
+#'   `PFER` and the number of variables `p` it must satisfy `q^2 < p * PFER`, otherwise
+#'   the selection threshold exceeds 1 and [stabs::stabsel()] fails.
+#' @param PFER Upper bound for the per-family error rate.
+#' @param seed Random seed for the subsampling.
+#'
+#' @returns A [stabs::stabsel()] object.
+#' @seealso [stabs::stabsel()]
 #' @export
-
 cpss_gamboost <- function(data, binary_class, features, iter, q, PFER, seed) {
 
     set.seed(seed)
@@ -222,12 +268,18 @@ cpss_gamboost <- function(data, binary_class, features, iter, q, PFER, seed) {
 #' Run stability selection with adaptive lasso on a list of data sets
 #'
 #' @description
-#' Run stability selection using adaptive lasso model on a list of data sets with default
-#' parameters q=10 and PFER=2
+#' Applies [cpss_adaptive_lasso()] to every data set in a list, with the same settings and
+#' seed for each.
 #'
-#' @param data  A list of data sets
+#' @param data A list of data.tables.
+#' @param binary_class Name of the binary outcome column.
+#' @param features Character vector of the predictors to use. Default `NULL` uses all
+#'   columns except `binary_class`.
+#' @param q Number of (unique) variables selected on each subsample. Default 10.
+#' @param PFER Upper bound for the per-family error rate. Default 2.
+#' @param seed Random seed for the subsampling. Required, there is no default.
 #'
-#' @returns A list of stabsel objects
+#' @returns A list of [stabs::stabsel()] objects, one per data set.
 #' @export
 run_cpss_adaptive_lasso <- function(data, binary_class, features = NULL,
                                     q = 10, PFER = 2, seed) {
@@ -238,18 +290,19 @@ run_cpss_adaptive_lasso <- function(data, binary_class, features = NULL,
 #' Run stability selection with glmboost on a list of data sets
 #'
 #' @description
-#' Run stability selection using glmboost model on a list of data sets with default
-#' parameters q=10 and PFER=2
+#' Applies [cpss_glmboost()] to every data set in a list, with the same settings and seed
+#' for each.
 #'
-#' @param data  A list of data sets
-#' @param binary_class  the name of the binary response variable
-#' @param features  a character vector of feature names to include in the model
-#' @param iter  number of boosting iterations
-#' @param q     number of (unique) selected variables that are selected on each subs
-#' @param PFER  per-family error rate
-#' @param seed  random seed for reproducibility
+#' @param data A list of data.tables.
+#' @param binary_class Name of the binary outcome column.
+#' @param features Character vector of the predictors to use. Default `NULL` uses all
+#'   columns except `binary_class`.
+#' @param iter Number of boosting iterations.
+#' @param q Number of (unique) variables selected on each subsample. Default 10.
+#' @param PFER Upper bound for the per-family error rate. Default 2.
+#' @param seed Random seed for the subsampling. Default 645332.
 #'
-#' @returns A list of stabsel objects
+#' @returns A list of [stabs::stabsel()] objects, one per data set.
 #' @export
 run_cpss_glmboost <- function(data, binary_class, features = NULL, iter,
                               q = 10, PFER = 2, seed = 645332) {

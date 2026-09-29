@@ -1,17 +1,31 @@
-#' data simulator
+#' Simulate a binary data set
 #'
 #' @description
-#' This function generate binary data sets for simulation study
+#' Simulates a binary outcome and a matrix of predictors. The outcome depends on a latent
+#' standard normal factor `f` through `P(y = 1) = linkinv(tau + sigma * f)`. The first
+#' `p_ref` predictors (the relevant ones) are noisy copies of `f` with pairwise
+#' correlation `rho`; the remaining `P - p_ref` predictors are independent standard
+#' normal noise.
 #'
-#' @param N number of samples
-#' @param P number of predictors
-#' @param p_ref number of relevant predictors
-#' @param tau bias
-#' @param sigma variance
-#' @param rho correlation
-#' @param link link function
+#' @details
+#' The outcome is redrawn until it contains at least four cases with `y = 1`, so that the
+#' minor class can be split and resampled.
 #'
-#' @returns list of y and x
+#' @param N Number of samples.
+#' @param P Total number of predictors.
+#' @param p_ref Number of relevant predictors (the first `p_ref` columns of `x`). Must
+#'   not exceed `P`.
+#' @param tau Intercept of the linear predictor on the link scale. Negative values make
+#'   `y = 1` rare.
+#' @param sigma Scale (standard deviation) of the latent factor in the linear predictor.
+#'   Larger values make the outcome more predictable from the relevant predictors.
+#' @param rho Correlation between the relevant predictors, between 0 and 1. A vector is
+#'   recycled over the `N * p_ref` values of the relevant block.
+#' @param link Name of a link function accepted by [stats::make.link()]. Default
+#'   `"logit"`.
+#'
+#' @returns A list with `y`, an integer vector of length `N` with values 0 and 1, and `x`,
+#'   a numeric `N x P` matrix.
 #' @export
 binary_data_generator <- function(N, P, p_ref, tau, sigma, rho, link = "logit"){
 
@@ -32,22 +46,29 @@ binary_data_generator <- function(N, P, p_ref, tau, sigma, rho, link = "logit"){
     return(list(y = y, x = x))
 }
 
-#' Generate data for simulation study
+#' Generate data sets for the simulation study
 #'
 #' @description
-#' Generate data sets using binary_data_generator with default parameter N=50, P=500,
-#' p_ref=10, tau=-9, sigma=10, rho=runif(10, 0.05, 0.95) to reflect the unbalanced class
-#' proportion
+#' Generates data sets with [binary_data_generator()] for every combination of the
+#' parameters (repeated `n` times). The defaults (N = 50, P = 500, p_ref = 10,
+#' tau = -9, sigma = 10 and rho drawn from `runif(10, 0.05, 0.95)`) reflect an
+#' unbalanced class proportion.
 #'
-#' @param n no. of simulation data sets
-#' @param N,P,p_ref,tau,sigma see \code{\link{binary_data_generator}}. Vectors are
-#'   expanded into one data set per element (times \code{n}).
-#' @param rho correlation. A vector is expanded into one data set per element,
-#'   like the other parameters. If \code{NULL} (default), one vector
-#'   \code{runif(10, 0.05, 0.95)} is drawn and used for every data set.
-#' @param seed seed for reproducibilty
+#' @details
+#' Vector-valued parameters are crossed, so that e.g. `N = rep(c(30, 50, 100), each = 100)`
+#' gives 300 data sets. All data sets are drawn one after the other from a single random
+#' stream started by `seed`.
 #'
-#' @returns list of data
+#' @param n Number of data sets per parameter combination.
+#' @param N,P,p_ref,tau,sigma See [binary_data_generator()]. A vector gives one data set
+#'   per element (times `n`).
+#' @param rho Correlation. A vector gives one data set per element, like the other
+#'   parameters. If `NULL` (default), one vector `runif(10, 0.05, 0.95)` is drawn and used
+#'   for every data set.
+#' @param seed Seed for reproducibility. Required, there is no default.
+#'
+#' @returns A list of data.tables, each with a factor `y` (levels 0 and 1) and numeric
+#'   columns `X1`, ..., `XP`.
 #' @export
 get_simulated_data <- function(
         n = 1,
@@ -87,16 +108,20 @@ get_simulated_data <- function(
         )
 }
 
-#' get cross-validation data for simulation study
+#' Split simulated data sets into standardised training and test sets
 #'
 #' @description
-#' The function split the data into training and test data using stratified sampling.
-#' The training data is standardised according to the mean and sd of the training data.
+#' Splits each data set 70/30 into a training and a test set, stratified by `y`
+#' ([caret::createDataPartition()]). All predictors (every column except `y`) are then
+#' standardised with the mean and standard deviation of the training set, in both sets, so
+#' that no information from the test set enters the scaling.
 #'
-#' @param data list of data sets
-#' @param seed seed for reproducibility
+#' @param data A list of data.tables as returned by [get_simulated_data()]: a factor
+#'   column `y` and numeric predictors.
+#' @param seed Seed for reproducibility.
 #'
-#' @returns list of data sets
+#' @returns A list with one element per data set, each a list with the data.tables `train`
+#'   and `test`.
 #' @export
 get_stratified_cv_data <- function(data, seed) {
 
@@ -118,45 +143,43 @@ get_stratified_cv_data <- function(data, seed) {
     return(simulated_data_rescaled)
 }
 
-#' get cross-validation training data
+#' Extract the training sets
 #'
 #' @description
-#' The function extract the training data from the list of data sets
-#' generated by get_stratified_cv_data.
+#' Extracts the training set of each data set from the output of
+#' [get_stratified_cv_data()].
 #'
+#' @param data A list as returned by [get_stratified_cv_data()].
 #'
-#' @param data list of data sets
-#'
-#' @returns list of data sets
+#' @returns A list of training data.tables, one per data set.
 #' @export
 get_train_cv_data <- function(data) {
     map(data, function(x) x$train)
 }
 
-#' get cross-validation test data
+#' Extract the test sets
 #'
 #' @description
-#' The function extract the test data from the list of data sets
-#' generated by get_stratified_cv_data.
+#' Extracts the test set of each data set from the output of
+#' [get_stratified_cv_data()].
 #'
-#' @param data list of data sets
+#' @param data A list as returned by [get_stratified_cv_data()].
 #'
-#' @returns list of data sets
+#' @returns A list of test data.tables, one per data set.
 #' @export
 get_test_cv_data <- function(data) {
     map(data, function(x) x$test)
 }
 
-#' Read Raw Data File
+#' Read the raw data file
 #'
-#' Reads a CSV file using \code{\link[data.table]{fread}} and automatically
-#' converts any character columns into factors, which is required for
-#' imputation with \code{missForest}.
+#' @description
+#' Reads a CSV file with [data.table::fread()] and converts character columns to factors,
+#' which is required for imputation with [missForest::missForest()].
 #'
-#' @param file_path A character string specifying the path to the raw CSV file.
+#' @param file_path Path to the raw CSV file.
 #'
-#' @return A \code{data.frame} containing the raw data with character columns
-#'   converted to factors.
+#' @returns A data.table with the raw data, character columns converted to factors.
 #' @export
 read_raw_data <- function(file_path) {
     dt <- data.table::fread(file_path)
@@ -171,20 +194,22 @@ read_raw_data <- function(file_path) {
 }
 
 
-#' Impute Missing Values Using missForest
+#' Impute missing values with missForest
 #'
-#' Performs non-parametric missing value imputation using random forests via
-#' \code{\link[missForest]{missForest}}. Handles mixed continuous and
-#' categorical factors automatically.
+#' @description
+#' Imputes missing values non-parametrically with random forests
+#' ([missForest::missForest()]). Continuous and categorical variables are handled
+#' automatically.
 #'
-#' @param data A \code{data.frame} containing missing values (\code{NA}).
-#'   Categorical variables must be of class \code{factor}.
-#' @param maxiter An integer specifying the maximum number of iterations to
-#'   be performed given the stopping criterion is not met. Defaults to \code{10}.
-#' @param ntree An integer specifying the number of trees to grow in each forest.
-#'   Defaults to \code{100}.
+#' @param data A data.table with missing values (`NA`). Categorical variables must be
+#'   factors (see [read_raw_data()]).
+#' @param features Character vector of the columns to impute. Only these columns are used
+#'   for the imputation and returned.
+#' @param maxiter Maximum number of iterations if the stopping criterion is not met.
+#'   Default 10.
+#' @param ntree Number of trees in each forest. Default 100.
 #'
-#' @return A \code{data.frame} with all missing values imputed.
+#' @returns A data.frame with the `features` columns and no missing values.
 #' @export
 impute_data <- function(data, features, maxiter = 10, ntree = 100) {
 
@@ -201,51 +226,56 @@ impute_data <- function(data, features, maxiter = 10, ntree = 100) {
 }
 
 
-#' Export Imputed Data to CSV
+#' Export imputed data to CSV
 #'
-#' Writes the imputed data frame to a specified file path on disk using
-#' \code{\link[data.table]{fwrite}} and returns the file path for pipeline tracking.
+#' @description
+#' Writes the imputed data to a CSV file with [data.table::fwrite()] and returns the path,
+#' so that the file can be tracked by a `targets` pipeline.
 #'
-#' @param data A \code{data.frame} or \code{data.table} containing the imputed dataset.
-#' @param output_path A character string specifying the destination file path for
-#'   the exported CSV file.
+#' @param data A data.frame or data.table with the imputed data.
+#' @param output_path Path of the CSV file to write.
 #'
-#' @return A character string containing \code{output_path}, suitable for
-#'   file tracking in target pipelines.
+#' @returns `output_path`, as a character string.
 #' @export
 export_imputed_data <- function(data, output_path) {
     data.table::fwrite(data, output_path)
     return(output_path) # Return file path for target tracking
 }
 
-#' Read Imputed Data File
+#' Read the imputed data file
 #'
-#' Reads the imputed CSV file back into R as a \code{data.table}.
+#' @description
+#' Reads the CSV file written by [export_imputed_data()] with [data.table::fread()].
 #'
-#' @param file_path A character string specifying the path to the imputed CSV file.
+#' @param file_path Path to the imputed CSV file.
 #'
-#' @return A \code{data.table} containing the imputed data.
+#' @returns A data.table with the imputed data.
 #' @export
 read_imputed_data <- function(file_path) {
     data.table::fread(file_path)
 }
 
-#' Generate Repeated Cross-Validation Splits with Mean Rescaling
+#' Create repeated cross-validation splits with centred features
 #'
-#' Creates repeated 4-fold cross-validation splits for input data, centering
-#' specified numeric features by subtracting the training fold mean from both
-#' training and testing subsets to prevent data leakage.
+#' @description
+#' Creates 10 repeats of stratified 4-fold cross-validation ([caret::createMultiFolds()],
+#' stratified by `Status`) and centres the selected features with the mean of the training
+#' part of each fold. The features are centred only, not scaled.
 #'
-#' @param data A \code{data.table} containing a \code{Status} column used for
-#'   stratified split generation and features to be rescaled.
-#' @param features_rescale A character vector specifying column names to
-#'   mean-center based on training folds.
-#' @param seed An integer seed for reproducibility of cross-validation splits.
-#'   Defaults to \code{91623978}.
+#' @details
+#' The training mean is subtracted from both the training and the test part of a fold, so
+#' no information from the test part enters the centring. The result has 40 folds named
+#' `Fold1.Rep01`, ..., `Fold4.Rep10`.
 #'
-#' @return A nested list containing two main elements:
-#'   \item{train}{A list of \code{data.table} objects corresponding to training folds.}
-#'   \item{test}{A list of \code{data.table} objects corresponding to testing folds.}
+#' @param data A data.table with a factor column `Status` and the features to be centred.
+#' @param features_rescale Character vector of the columns to centre.
+#' @param seed Seed for reproducibility of the fold assignment. Default 91623978.
+#'
+#' @returns A list with two elements:
+#' \describe{
+#'   \item{train}{A list of 40 training data.tables, one per fold.}
+#'   \item{test}{A list of 40 test data.tables, one per fold, in the same order.}
+#' }
 #' @export
 get_fapaca_cv_data <- function(data, features_rescale, seed = 91623978) {
 
@@ -280,19 +310,16 @@ get_fapaca_cv_data <- function(data, features_rescale, seed = 91623978) {
 }
 
 
-#' Subset Features from Cross-Validation Training Data
+#' Select features from the cross-validation training sets
 #'
-#' Extracts a specific subset of columns/features across all cross-validation
-#' training folds.
+#' @description
+#' Keeps only the given feature columns in every training fold.
 #'
-#' @param data A nested list structure containing a train element
-#'   (typically generated by \code{\link{get_fapaca_cv_data}}), where train
-#'   is a list of \code{data.table} objects.
-#' @param features A character vector of feature column names to select from each
-#'   training fold dataset.
+#' @param data A list with an element `train`, a list of data.tables, as returned by
+#'   [get_fapaca_cv_data()].
+#' @param features Character vector of the columns to keep.
 #'
-#' @return A list of \code{data.table} objects, each subsetted to include
-#'   only the specified \code{features}.
+#' @returns A list of data.tables, one per training fold, with only the columns `features`.
 #' @export
 get_fapaca_train_data <- function(data, features) {
 
