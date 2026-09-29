@@ -13,7 +13,6 @@
 #'
 #' @returns list of y and x
 #' @export
-
 binary_data_generator <- function(N, P, p_ref, tau, sigma, rho, link = "logit"){
 
     linkinv <- make.link(link)$linkinv
@@ -45,7 +44,6 @@ binary_data_generator <- function(N, P, p_ref, tau, sigma, rho, link = "logit"){
 #'
 #' @returns list of data
 #' @export
-
 get_simulated_data <- function(
         n = 1,
         N = 50,
@@ -93,7 +91,6 @@ get_simulated_data <- function(
 #'
 #' @returns list of data sets
 #' @export
-
 get_stratified_cv_data <- function(data, seed) {
 
     set.seed(seed)
@@ -126,7 +123,6 @@ get_stratified_cv_data <- function(data, seed) {
 #'
 #' @returns list of data sets
 #' @export
-
 get_train_cv_data <- function(data) {
     map(data, function(x) x$train)
 }
@@ -141,7 +137,162 @@ get_train_cv_data <- function(data) {
 #'
 #' @returns list of data sets
 #' @export
-
 get_test_cv_data <- function(data) {
     map(data, function(x) x$test)
+}
+
+#' Read Raw Data File
+#'
+#' Reads a CSV file using \code{\link[data.table]{fread}} and automatically
+#' converts any character columns into factors, which is required for
+#' imputation with \code{missForest}.
+#'
+#' @param file_path A character string specifying the path to the raw CSV file.
+#'
+#' @return A \code{data.frame} containing the raw data with character columns
+#'   converted to factors.
+#' @export
+read_raw_data <- function(file_path) {
+    dt <- data.table::fread(file_path)
+
+    # Ensure character columns are converted to factors for missForest
+    char_cols <- names(dt)[sapply(dt, is.character)]
+    if (length(char_cols) > 0) {
+        dt[, (char_cols) := lapply(.SD, as.factor), .SDcols = char_cols]
+    }
+
+    return(dt)
+}
+
+
+#' Impute Missing Values Using missForest
+#'
+#' Performs non-parametric missing value imputation using random forests via
+#' \code{\link[missForest]{missForest}}. Handles mixed continuous and
+#' categorical factors automatically.
+#'
+#' @param data A \code{data.frame} containing missing values (\code{NA}).
+#'   Categorical variables must be of class \code{factor}.
+#' @param maxiter An integer specifying the maximum number of iterations to
+#'   be performed given the stopping criterion is not met. Defaults to \code{10}.
+#' @param ntree An integer specifying the number of trees to grow in each forest.
+#'   Defaults to \code{100}.
+#'
+#' @return A \code{data.frame} with all missing values imputed.
+#' @export
+impute_data <- function(data, features, maxiter = 10, ntree = 100) {
+
+    # Convert the selected features to a data frame for missForest
+    xmis <- as.data.frame(data[, ..features])
+
+    # missForest returns a list; $ximp contains the imputed data frame
+    imputed_result <- missForest::missForest(
+        xmis = xmis,
+        maxiter = maxiter,
+        ntree = ntree
+    )
+    return(imputed_result$ximp)
+}
+
+
+#' Export Imputed Data to CSV
+#'
+#' Writes the imputed data frame to a specified file path on disk using
+#' \code{\link[data.table]{fwrite}} and returns the file path for pipeline tracking.
+#'
+#' @param data A \code{data.frame} or \code{data.table} containing the imputed dataset.
+#' @param output_path A character string specifying the destination file path for
+#'   the exported CSV file.
+#'
+#' @return A character string containing \code{output_path}, suitable for
+#'   file tracking in target pipelines.
+#' @export
+export_imputed_data <- function(data, output_path) {
+    data.table::fwrite(data, output_path)
+    return(output_path) # Return file path for target tracking
+}
+
+#' Read Imputed Data File
+#'
+#' Reads the imputed CSV file back into R as a \code{data.table}.
+#'
+#' @param file_path A character string specifying the path to the imputed CSV file.
+#'
+#' @return A \code{data.table} containing the imputed data.
+#' @export
+read_imputed_data <- function(file_path) {
+    data.table::fread(file_path)
+}
+
+#' Generate Repeated Cross-Validation Splits with Mean Rescaling
+#'
+#' Creates repeated 4-fold cross-validation splits for input data, centering
+#' specified numeric features by subtracting the training fold mean from both
+#' training and testing subsets to prevent data leakage.
+#'
+#' @param data A \code{data.table} containing a \code{Status} column used for
+#'   stratified split generation and features to be rescaled.
+#' @param features_rescale A character vector specifying column names to
+#'   mean-center based on training folds.
+#' @param seed An integer seed for reproducibility of cross-validation splits.
+#'   Defaults to \code{91623978}.
+#'
+#' @return A nested list containing two main elements:
+#'   \item{train}{A list of \code{data.table} objects corresponding to training folds.}
+#'   \item{test}{A list of \code{data.table} objects corresponding to testing folds.}
+#' @export
+get_fapaca_cv_data <- function(data, features_rescale, seed = 91623978) {
+
+    # Set seed for reproducible cross-validation fold generation
+    set.seed(seed)
+
+    # Generate 10 repeats of 4-fold stratified cross-validation indices based on 'Status'
+    cv_ind <- caret::createMultiFolds(data$Status, 4, 10)
+
+    # Rescale specified features using fold-specific training means
+    data_cv_rescaled <- purrr::map(
+        cv_ind,
+        function(x) {
+            # Extract unique training row indices for the current fold
+            ind <- unique(x)
+
+            # Create a deep copy of data and mean-center selected features using training fold mean
+            data_rescaled <- copy(data)[, c(features_rescale) := lapply(.SD, function(y) (y - mean(y[ind]))),
+                                        .SDcols = c(features_rescale)]
+
+            # Split rescaled dataset into train and test folds
+            return(list(train = data_rescaled[ind], test = data_rescaled[-ind]))
+        }
+    )
+
+    # Extract all training and testing splits into separate nested lists
+    data_train <- purrr::map(data_cv_rescaled, function(x) x$train)
+    data_test <- purrr::map(data_cv_rescaled, function(x) x$test)
+
+    # Return structured train/test cross-validation dataset lists
+    return(list(train = data_train, test = data_test))
+}
+
+
+#' Subset Features from Cross-Validation Training Data
+#'
+#' Extracts a specific subset of columns/features across all cross-validation
+#' training folds.
+#'
+#' @param data A nested list structure containing a train element
+#'   (typically generated by \code{\link{get_fapaca_cv_data}}), where train
+#'   is a list of \code{data.table} objects.
+#' @param features A character vector of feature column names to select from each
+#'   training fold dataset.
+#'
+#' @return A list of \code{data.table} objects, each subsetted to include
+#'   only the specified \code{features}.
+#' @export
+get_fapaca_train_data <- function(data, features) {
+
+    # Validate that input list contains a valid 'train' element of type list
+    stopifnot("Input data must be a list of data.tables" = is.list(data$train))
+
+    # Subset specified features from each data.table in the training folds list
+    purrr::map(data$train, function(x) x[, ..features])
 }
