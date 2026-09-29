@@ -1,0 +1,41 @@
+Package: statlearnfapaca
+Type: Package
+Title: Proteomics biomarker discovery for individualized prevention of familial pancreatic cancer using statistical learning
+Version: 0.0.0.9000
+Authors@R: c(
+    person(given   = "Chung Shing Rex",
+           family  = "Ha",
+           role    = c("aut", "cre", "cph"),
+           email   = "hachungshingrex@gmail.com",
+           comment = c(ORCID = "0000-0001-5238-0963")))
+Description: R code of the simulation study and of the analysis of the FaPaCa
+    proteomics data in the manuscript 'Proteomics biomarker discovery for
+    individualized prevention of familial pancreatic cancer using statistical
+    learning' (Ha et al., 2023) <doi:10.1371/journal.pone.0280399>. It compares
+    ridge regression, adaptive lasso and boosting, and uses complementary pairs
+    stability selection.
+URL: https://github.com/csrexha/StatLearn_FaPaCa
+BugReports: https://github.com/csrexha/StatLearn_FaPaCa/issues
+License: GPL (>= 2)
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+Suggests: 
+    crew,
+    StatLearn,
+    testthat (>= 3.0.0),
+    withr
+Config/testthat/edition: 3
+Imports: 
+    caret,
+    data.table,
+    glmnet (>= 5.0),
+    magrittr,
+    mboost,
+    missForest,
+    plyr,
+    purrr,
+    qs2,
+    stabs,
+    stats,
+    targets
+Config/roxygen2/version: 8.1.0

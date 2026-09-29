@@ -1,6 +1,11 @@
 # macOS files ----
 .DS_Store
 
+# Large files ----
+.git
+renv/library
+renv/local
+
 # History files ----
 .Rhistory
 .Rapp.history
@@ -13,19 +18,10 @@
 *.Rproj
 .Rproj.user/
 
-# R Environment Variables ----
-.Renviron
-
-# User-specific files ----
-README.html
-inst/doc
-man/
-NAMESPACE
-.Rprofile
-rv/
-
-# Pipeline results (rebuilt by make.R) ----
+# Pipeline results and local environment ----
 _targets/
 outputs/*
 !outputs/README.md
 .quarto/
+.Rprofile
+rv/
