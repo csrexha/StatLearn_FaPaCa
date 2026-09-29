@@ -1,18 +1,22 @@
 #' StatLearn_FaPaCa: A Research Compendium
-#' 
-#' @description 
-#' A paragraph providing a full description of the project and describing each 
-#' step of the workflow.
-#' 
-#' @author Chung Shing Rex Ha \email{chungshingrex@gmail.com}
-#' 
+#'
+#' @description
+#' Runs the simulation study and the FaPaCa study of "Proteomics biomarker
+#' discovery for individualized prevention of familial pancreatic cancer using
+#' statistical learning" as two targets pipelines.
+#'
+#' @author Chung Shing Rex Ha \email{hachungshingrex@gmail.com}
+#'
 #' @date 2026/09/24
 
 
 
-## Install Dependencies (listed in DESCRIPTION) ----
+## Install Dependencies (listed in rproject.toml) ----
 
-renv::restore()
+if (!nzchar(Sys.which("rv"))) {
+    stop("rv is not installed. Install it from https://github.com/A2-ai/rv")
+}
+system2("rv", c("sync", "-c", here::here("rproject.toml")))
 
 
 ## Load Project Addins (R Functions and Packages) ----
@@ -22,10 +26,20 @@ devtools::load_all(here::here())
 
 ## Global Variables ----
 
-# You can list global variables here (or in a separate R script)
+run_simulation <- TRUE
+run_fapaca     <- file.exists(here::here("data", "raw_data.csv"))  # data are not distributed
 
 
 ## Run Project ----
 
-# List all R scripts in a sequential order and using the following form:
-# source(here::here("analyses", "script_X.R"))
+if (run_simulation) {
+    targets::tar_make(script = here::here("analyses", "simulation_study_pipeline.R"),
+                      store  = here::here("outputs", "simulation_study"))
+}
+
+if (run_fapaca) {
+    targets::tar_make(script = here::here("analyses", "fapaca_study.R"),
+                      store  = here::here("outputs", "fapaca_study"))
+} else {
+    message("data/raw_data.csv not found: skipping the FaPaCa study")
+}
