@@ -173,6 +173,84 @@ fit_glmboost <- function(data, binary_class, features = NULL, seed = 1234) {
                 return(fit)
             }
         )
+    return(fit_list)
+}
+
+#' Fit \code{\link[mboost]{gamboost}} model
+#'
+#' @description
+#' This function fits a \code{\link[mboost]{gamboost}} model to each dataset in the provided list
+#' of simulation data. It first sets an initial number of iterations,
+#' fits the logistic boosting model, and then adjusts the number of iterations using AIC.
+#' The function also uses resampling to search for the optimal iteration.
+#' Finally, it returns a list of fitted models for each dataset.
+#'
+#' @param data A list of data frames
+#' @param binary_class The name of the binary class variable
+#' @param features A vector of feature names. Default is NULL, which means all features will be used in the model.
+#' @param seed A random seed for reproducibility. Default 1234
+#'
+#' @returns A list of fitted \code{\link[mboost]{gamboost}} models
+#' @export
+fit_gamboost <- function(data, binary_class, features = NULL, seed = 1234) {
+
+    set.seed(seed)
+
+    fit_list <- data |>
+        purrr::pmap(
+            function(data) {
+
+                if(!is.null(features)) {
+                    model <- as.formula(paste0(binary_class, " ~ ."))
+                } else {
+                    # create base-learner
+                    blrns <- c(
+                        paste0("bols(", c(features, "Age", "Sex"),
+                               ", intercept = FALSE)"), # centred
+                        paste0("bbs(", c(features, "Age"),
+                               ", knots = 8, degree = 4, df = 1, center = TRUE)"), # centred
+                        "bols(Intercept, intercept = FALSE)"
+                    )
+
+                    model <- as.formula(paste0(binary_class, " ~ ", paste(blrns, collapse = "+")))
+                }
+
+                # setting initial number of iteration
+                iter <- 50
+
+                # fit the logistic boosting model
+                fit <- mboost::gamboost(formula = model,
+                                        data = cbind(data, Intercept = 1),
+                                        family = mboost::Binomial(link = "logit"),
+                                        control = mboost::boost_control(mstop = iter, nu = 0.1))
+
+                # adjust the number of iteration using AIC (logit link only)
+                aic <- mboost::AIC(fit, method = "classical")
+
+                while(iter <= mboost::mstop(aic) * 1.2 && iter < 1000){
+                    iter <- iter + 50
+                    mboost::mstop(fit) <- iter
+                    aic <- mboost::AIC(fit, method = "classical")
+                }
+
+                # set a resampling scheme.
+                rsmp <- mboost::cv(model.weights(fit),
+                                   type = "bootstrap",
+                                   strata = fit$response)
+
+                # using resampling to search for the optimal iteration.
+                fit_cvrisk <- mboost::cvrisk(fit,
+                                             folds = rsmp,
+                                             mc.cores = 10)
+
+                # set the mstop to optimal mstop
+                mboost::mstop(fit) <- mboost::mstop(fit_cvrisk)
+
+                return(fit)
+            }
+        )
+
+    return(fit_list)
 }
 
 #' Extract selected features from adaptive lasso model
