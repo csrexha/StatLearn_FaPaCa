@@ -60,17 +60,26 @@ glmnet.adalasso <- function(x, y, q, l2_lambda, type = c("conservative", "antico
 #' feature selection model.
 #'
 #' @param data  data
+#' @param binary_class  the name of the binary response variable
+#' @param features  a character vector of feature names to include in the model
 #' @param q     number of (unique) selected variables that are selected on each subsample.
+#' @param seed  random seed for reproducibility
 #' @param PFER  upper bound for the per-family error rate.
 #'
 #' @returns stabsel object
 #' @export
+cpss_adaptive_lasso <- function(data, binary_class, features, q, PFER, seed) {
 
-cpss_adaptive_lasso <- function(data, q, PFER){
+    set.seed(seed)
 
     # convert data to matrix
-    xmat <- as.matrix(data[, -1])
-    y <- data$y
+    if(!is.null(features)) {
+        xmat <- as.matrix(data[, ..features])
+    } else {
+        xmat <- as.matrix(data[, !..binary_class])
+    }
+
+    y <- as.numeric(data[[binary_class]]) - 1
 
     # stratified subsampling
     stabs_rsmp <- subsample(rep(1, nrow(xmat)), B = 50, strata = as.factor(y))
@@ -105,20 +114,31 @@ cpss_adaptive_lasso <- function(data, q, PFER){
 #' feature selection model.
 #'
 #' @param data  data
+#' @param binary_class  the name of the binary response variable
+#' @param features  a character vector of feature names to include in the model
+#' @param iter  number of boosting iterations
 #' @param q     number of (unique) selected variables that are selected on each subsample.
 #' @param PFER  upper bound for the per-family error rate.
+#' @param seed  random seed for reproducibility
 #'
 #' @returns stabsel object
 #' @export
 
-cpss_glmboost <- function(data, q = 10, PFER = 2){
+cpss_glmboost <- function(data, binary_class, features, iter, q, PFER, seed) {
+
+    if(!is.null(features)) {
+        model <- as.formula(paste0(binary_class, "~",
+                                   paste(features, collapse = " + ")))
+    } else {
+        model <- formula(paste0(binary_class, "~ ."))
+    }
 
     # fit the logistic boosting model
     mboost_fit <- glmboost(
-        y ~ .,
+        model,
         data = data,
         family = Binomial(type = "adaboost", link = "logit"),
-        control = boost_control(mstop = 500, nu = 0.1)
+        control = boost_control(mstop = iter, nu = 0.1)
         )
 
     # stratified subsampling
@@ -152,10 +172,10 @@ cpss_glmboost <- function(data, q = 10, PFER = 2){
 #'
 #' @returns A list of stabsel objects
 #' @export
-
-run_cpss_adaptive_lasso <- function(data) {
+run_cpss_adaptive_lasso <- function(data, binary_class, features = NULL,
+                                    q = 10, PFER = 2, seed) {
     data |>
-        map(function(x) cpss_adaptive_lasso(x, 10, 2))
+        map(function(x) cpss_adaptive_lasso(x, binary_class, features, q, PFER, seed))
 }
 
 #' Run stability selection with glmboost on a list of data sets
@@ -165,11 +185,17 @@ run_cpss_adaptive_lasso <- function(data) {
 #' parameters q=10 and PFER=2
 #'
 #' @param data  A list of data sets
+#' @param binary_class  the name of the binary response variable
+#' @param features  a character vector of feature names to include in the model
+#' @param iter  number of boosting iterations
+#' @param q     number of (unique) selected variables that are selected on each subs
+#' @param PFER  per-family error rate
+#' @param seed  random seed for reproducibility
 #'
 #' @returns A list of stabsel objects
 #' @export
-
-run_cpss_glmboost <- function(data) {
+run_cpss_glmboost <- function(data, binary_class, features = NULL, iter,
+                              q = 10, PFER = 2, seed = 645332) {
     data |>
-        map(function(x) cpss_glmboost(x, 10, 2))
+        map(function(x) cpss_glmboost(x, binary_class, features, iter, q, PFER, seed))
 }
