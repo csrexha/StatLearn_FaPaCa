@@ -137,14 +137,11 @@ fit_adaptive_lasso <- function(data, binary_class, features = NULL) {
 #' @param binary_class Name of the binary outcome column.
 #' @param features Character vector of the predictors to use. Default `NULL` uses all
 #'   columns except `binary_class`.
-#' @param seed Random seed, set once before all models are fitted. Default 1234.
 #' @param cores Number of cores used by [mboost::cvrisk()]. Default 4.
 #'
 #' @returns A list of [mboost::glmboost()] models, one per data set.
 #' @export
-fit_glmboost <- function(data, binary_class, features = NULL, seed = 1234, cores = 4) {
-
-    set.seed(seed)
+fit_glmboost <- function(data, binary_class, features = NULL, cores = 4) {
 
     fit_list <- data |>
         map(
@@ -263,14 +260,11 @@ make_gamboost_formula <- function(data, binary_class, features = NULL) {
 #' @param binary_class Name of the binary outcome column.
 #' @param features Character vector of the predictors to use. Default `NULL` uses all
 #'   columns except `binary_class`.
-#' @param seed Random seed, set once before all models are fitted. Default 1234.
 #' @param cores Number of cores used by [mboost::cvrisk()]. Default 10.
 #'
 #' @returns A list of [mboost::gamboost()] models, one per data set.
 #' @export
-fit_gamboost <- function(data, binary_class, features = NULL, seed = 1234, cores = 10) {
-
-    set.seed(seed)
+fit_gamboost <- function(data, binary_class, features = NULL, cores = 10) {
 
     fit_list <- data |>
         purrr::map(

@@ -65,7 +65,6 @@ binary_data_generator <- function(N, P, p_ref, tau, sigma, rho, link = "logit"){
 #' @param rho Correlation. A vector gives one data set per element, like the other
 #'   parameters. If `NULL` (default), one vector `runif(10, 0.05, 0.95)` is drawn and used
 #'   for every data set.
-#' @param seed Seed for reproducibility. Required, there is no default.
 #'
 #' @returns A list of data.tables, each with a factor `y` (levels 0 and 1) and numeric
 #'   columns `X1`, ..., `XP`.
@@ -77,10 +76,7 @@ get_simulated_data <- function(
         p_ref = 10,
         tau = -9,
         sigma = 10,
-        rho = NULL,
-        seed) {
-
-    set.seed(seed)
+        rho = NULL) {
 
     if (is.null(rho)) {
         rho <- list(runif(10, 0.05, 0.95))
@@ -118,14 +114,11 @@ get_simulated_data <- function(
 #'
 #' @param data A list of data.tables as returned by [get_simulated_data()]: a factor
 #'   column `y` and numeric predictors.
-#' @param seed Seed for reproducibility.
 #'
 #' @returns A list with one element per data set, each a list with the data.tables `train`
 #'   and `test`.
 #' @export
-get_stratified_cv_data <- function(data, seed) {
-
-    set.seed(seed)
+get_stratified_cv_data <- function(data) {
 
     cv_ind <- map(data, function(x) createDataPartition(x$y, p = 0.7, list = FALSE))
 
@@ -135,7 +128,8 @@ get_stratified_cv_data <- function(data, seed) {
         data,
         function(x, y){
             vars <- setdiff(names(y), "y")
-            dat <- copy(y)[, c(vars):=lapply(.SD, function(a) (a - mean(a[x]))/sd(a[x])), .SDcols=c(vars)]
+            dat <- copy(y)[, c(vars):=lapply(.SD, function(a) (a - mean(a[x]))/sd(a[x])),
+                           .SDcols=c(vars)]
             return(list(train = dat[x], test = dat[-x]))
         }
     )
@@ -269,7 +263,6 @@ read_imputed_data <- function(file_path) {
 #'
 #' @param data A data.table with a factor column `Status` and the features to be centred.
 #' @param features_rescale Character vector of the columns to centre.
-#' @param seed Seed for reproducibility of the fold assignment. Default 91623978.
 #'
 #' @returns A list with two elements:
 #' \describe{
@@ -277,10 +270,7 @@ read_imputed_data <- function(file_path) {
 #'   \item{test}{A list of 40 test data.tables, one per fold, in the same order.}
 #' }
 #' @export
-get_fapaca_cv_data <- function(data, features_rescale, seed = 91623978) {
-
-    # Set seed for reproducible cross-validation fold generation
-    set.seed(seed)
+get_fapaca_cv_data <- function(data, features_rescale) {
 
     # Generate 10 repeats of 4-fold stratified cross-validation indices based on 'Status'
     cv_ind <- caret::createMultiFolds(data$Status, 4, 10)

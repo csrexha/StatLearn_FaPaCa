@@ -87,14 +87,11 @@ glmnet.adalasso <- function(x, y, q, l2_lambda, type = c("conservative", "antico
 #'   `PFER` and the number of variables `p` it must satisfy `q^2 < p * PFER`, otherwise
 #'   the selection threshold exceeds 1 and [stabs::stabsel()] fails.
 #' @param PFER Upper bound for the per-family error rate.
-#' @param seed Random seed for the subsampling.
 #'
 #' @returns A [stabs::stabsel()] object.
 #' @seealso [stabs::stabsel()]
 #' @export
-cpss_adaptive_lasso <- function(data, binary_class, features, q, PFER, seed) {
-
-    set.seed(seed)
+cpss_adaptive_lasso <- function(data, binary_class, features, q, PFER) {
 
     # convert data to matrix
     if(!is.null(features)) {
@@ -153,14 +150,11 @@ cpss_adaptive_lasso <- function(data, binary_class, features, q, PFER, seed) {
 #'   `PFER` and the number of variables `p` it must satisfy `q^2 < p * PFER`, otherwise
 #'   the selection threshold exceeds 1 and [stabs::stabsel()] fails.
 #' @param PFER Upper bound for the per-family error rate.
-#' @param seed Random seed for the subsampling.
 #'
 #' @returns A [stabs::stabsel()] object. The intercept counts as a base-learner.
 #' @seealso [stabs::stabsel()]
 #' @export
-cpss_glmboost <- function(data, binary_class, features, iter, q, PFER, seed) {
-
-    set.seed(seed)
+cpss_glmboost <- function(data, binary_class, features, iter, q, PFER) {
 
     if(!is.null(features)) {
         model <- as.formula(paste0(binary_class, "~",
@@ -227,9 +221,7 @@ cpss_glmboost <- function(data, binary_class, features, iter, q, PFER, seed) {
 #' @returns A [stabs::stabsel()] object.
 #' @seealso [stabs::stabsel()]
 #' @export
-cpss_gamboost <- function(data, binary_class, features, iter, q, PFER, seed) {
-
-    set.seed(seed)
+cpss_gamboost <- function(data, binary_class, features, iter, q, PFER) {
 
     model <- make_gamboost_formula(data, binary_class, features)
 
@@ -275,14 +267,13 @@ cpss_gamboost <- function(data, binary_class, features, iter, q, PFER, seed) {
 #'   columns except `binary_class`.
 #' @param q Number of (unique) variables selected on each subsample. Default 10.
 #' @param PFER Upper bound for the per-family error rate. Default 2.
-#' @param seed Random seed for the subsampling. Required, there is no default.
 #'
 #' @returns A list of [stabs::stabsel()] objects, one per data set.
 #' @export
 run_cpss_adaptive_lasso <- function(data, binary_class, features = NULL,
-                                    q = 10, PFER = 2, seed) {
+                                    q = 10, PFER = 2) {
     data |>
-        map(function(x) cpss_adaptive_lasso(x, binary_class, features, q, PFER, seed))
+        map(function(x) cpss_adaptive_lasso(x, binary_class, features, q, PFER))
 }
 
 #' Run stability selection with glmboost on a list of data sets
@@ -298,12 +289,11 @@ run_cpss_adaptive_lasso <- function(data, binary_class, features = NULL,
 #' @param iter Number of boosting iterations.
 #' @param q Number of (unique) variables selected on each subsample. Default 10.
 #' @param PFER Upper bound for the per-family error rate. Default 2.
-#' @param seed Random seed for the subsampling. Default 645332.
 #'
 #' @returns A list of [stabs::stabsel()] objects, one per data set.
 #' @export
 run_cpss_glmboost <- function(data, binary_class, features = NULL, iter,
-                              q = 10, PFER = 2, seed = 645332) {
+                              q = 10, PFER = 2) {
     data |>
-        map(function(x) cpss_glmboost(x, binary_class, features, iter, q, PFER, seed))
+        map(function(x) cpss_glmboost(x, binary_class, features, iter, q, PFER))
 }
