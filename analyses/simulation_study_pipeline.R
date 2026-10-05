@@ -29,11 +29,11 @@ list(
     # 1.1. Generate simulation data and rescale the data for cross-validation
     tar_target(
         name = e1_simulated_data,
-        command = get_simulated_data(n = 100, seed = 119752361)
+        command = get_simulated_data(n = 100)
     ),
     tar_target(
         name = e1_scaled_cv_data,
-        command = get_stratified_cv_data(e1_simulated_data, seed = 873)
+        command = get_stratified_cv_data(e1_simulated_data)
     ),
 
     # 1.2. Split the scaled data into training and test sets for cross-validation
@@ -90,28 +90,23 @@ list(
     # 2.1. Generate simulation data with varying parameters N, P, p_ref, tau and rho
     tar_target(
         name = e2_simulated_data_N,
-        command = get_simulated_data(N = rep(c(30, 50, 100), each = 100),
-                                     seed = 39374)
+        command = get_simulated_data(N = rep(c(30, 50, 100), each = 100))
     ),
     tar_target(
         name = e2_simulated_data_P,
-        command = get_simulated_data(P = rep(c(100, 500, 5000), each = 100),
-                                     seed = 44234374)
+        command = get_simulated_data(P = rep(c(100, 500, 5000), each = 100))
     ),
     tar_target(
         name = e2_simulated_data_pref,
-        command = get_simulated_data(p_ref = rep(c(2, 5, 10, 20), each = 100),
-                                     seed = 123474)
+        command = get_simulated_data(p_ref = rep(c(2, 5, 10, 20), each = 100))
     ),
     tar_target(
         name = e2_simulated_data_tau,
-        command = get_simulated_data(tau = rep(c(0, -2, -4, -6), each = 100),
-                                     seed = 964896)
+        command = get_simulated_data(tau = rep(c(0, -2, -4, -6), each = 100))
     ),
     tar_target(
         name = e2_simulated_data_rho,
-        command = get_simulated_data(rho = rep(c(0.1, 0.3, 0.5, 0.7), each = 100),
-                                     seed = 6418241)
+        command = get_simulated_data(rho = rep(c(0.1, 0.3, 0.5, 0.7), each = 100))
     ),
 
     # 2.2. Stability selection using adaptive lasso
@@ -121,8 +116,7 @@ list(
                                           binary_class = binary_class,
                                           features = NULL,
                                           q = 10,
-                                          PFER = 2,
-                                          seed = 87435)
+                                          PFER = 2)
     ),
     tar_target(
         name = e2_stabsel_adaptive_lasso_P,
@@ -130,8 +124,7 @@ list(
                                           binary_class = binary_class,
                                           features = NULL,
                                           q = 10,
-                                          PFER = 2,
-                                          seed = 87435)
+                                          PFER = 2)
     ),
     tar_target(
         name = e2_stabsel_adaptive_lasso_pref,
@@ -139,8 +132,7 @@ list(
                                           binary_class = binary_class,
                                           features = NULL,
                                           q = 10,
-                                          PFER = 2,
-                                          seed = 87435)
+                                          PFER = 2)
     ),
     tar_target(
         name = e2_stabsel_adaptive_lasso_tau,
@@ -148,8 +140,7 @@ list(
                                           binary_class = binary_class,
                                           features = NULL,
                                           q = 10,
-                                          PFER = 2,
-                                          seed = 87435)
+                                          PFER = 2)
     ),
     tar_target(
         name = e2_stabsel_adaptive_lasso_rho,
@@ -157,8 +148,7 @@ list(
                                           binary_class = binary_class,
                                           features = NULL,
                                           q = 10,
-                                          PFER = 2,
-                                          seed = 87435)
+                                          PFER = 2)
     ),
 
     # 2.3. Stability selection using glmboost
@@ -169,8 +159,7 @@ list(
                                     features = NULL,
                                     iter = 500,
                                     q = 10,
-                                    PFER = 2,
-                                    seed = 29374)
+                                    PFER = 2)
     ),
     tar_target(
         name = e2_stabsel_glmboost_P,
@@ -179,8 +168,7 @@ list(
                                     features = NULL,
                                     iter = 500,
                                     q = 10,
-                                    PFER = 2,
-                                    seed = 29374)
+                                    PFER = 2)
     ),
     tar_target(
         name = e2_stabsel_glmboost_pref,
@@ -189,8 +177,7 @@ list(
                                     features = NULL,
                                     iter = 500,
                                     q = 10,
-                                    PFER = 2,
-                                    seed = 29374)
+                                    PFER = 2)
     ),
     tar_target(
         name = e2_stabsel_glmboost_tau,
@@ -199,8 +186,7 @@ list(
                                     features = NULL,
                                     iter = 500,
                                     q = 10,
-                                    PFER = 2,
-                                    seed = 29374)
+                                    PFER = 2)
     ),
     tar_target(
         name = e2_stabsel_glmboost_rho,
@@ -209,7 +195,6 @@ list(
                                     features = NULL,
                                     iter = 500,
                                     q = 10,
-                                    PFER = 2,
-                                    seed = 29374)
+                                    PFER = 2)
     )
 )
