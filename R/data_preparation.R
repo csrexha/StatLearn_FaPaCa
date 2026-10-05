@@ -50,7 +50,7 @@ binary_data_generator <- function(N, P, p_ref, tau, sigma, rho, link = "logit"){
 #'
 #' @description
 #' Generates data sets with [binary_data_generator()] for every combination of the
-#' parameters (repeated `n` times). The defaults (N = 50, P = 500, p_ref = 10,
+#' parameters. The defaults (N = 50, P = 500, p_ref = 10,
 #' tau = -9, sigma = 10 and rho drawn from `runif(10, 0.05, 0.95)`) reflect an
 #' unbalanced class proportion.
 #'
@@ -59,7 +59,6 @@ binary_data_generator <- function(N, P, p_ref, tau, sigma, rho, link = "logit"){
 #' gives 300 data sets. All data sets are drawn one after the other from a single random
 #' stream started by `seed`.
 #'
-#' @param n Number of data sets per parameter combination.
 #' @param N,P,p_ref,tau,sigma See [binary_data_generator()]. A vector gives one data set
 #'   per element (times `n`).
 #' @param rho Correlation. A vector gives one data set per element, like the other
@@ -70,7 +69,6 @@ binary_data_generator <- function(N, P, p_ref, tau, sigma, rho, link = "logit"){
 #'   columns `X1`, ..., `XP`.
 #' @export
 get_simulated_data <- function(
-        n = 1,
         N = 50,
         P = 500,
         p_ref = 10,
@@ -85,7 +83,6 @@ get_simulated_data <- function(
     }
 
     CJ(
-        i = 1:n,
         N = N,
         P = P,
         p_ref = p_ref,
@@ -95,7 +92,7 @@ get_simulated_data <- function(
         sorted = FALSE
         ) |>
         pmap(
-            function(i, N, P, p_ref, tau, sigma, rho) {
+            function(N, P, p_ref, tau, sigma, rho) {
                 binary_data_generator(N, P, p_ref, tau, sigma, rho) |>
                     as.data.table() |>
                     _[, y := as.factor(y)] |>

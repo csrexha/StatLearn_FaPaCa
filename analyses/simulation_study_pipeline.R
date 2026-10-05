@@ -7,6 +7,7 @@
 # Load packages required to define the pipeline:
 library(targets)
 library(crew)
+library(tarchetypes)
 
 # Run the R scripts in the R/ folder with your custom functions:
 tar_source()
@@ -27,9 +28,11 @@ list(
     # Simulation experiment 1 --------------------------------------------------------------
 
     # 1.1. Generate simulation data and rescale the data for cross-validation
-    tar_target(
+    tar_rep(
         name = e1_simulated_data,
-        command = get_simulated_data(n = 100)
+        command = get_simulated_data(),
+        batches = 10,
+        reps = 10
     ),
     tar_target(
         name = e1_scaled_cv_data,
