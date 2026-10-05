@@ -3,9 +3,11 @@
 #' @import missForest
 #' @import qs2
 #' @import targets
+#' @import tarchetypes
+#' @import crew
 #' @importFrom caret createDataPartition createFolds createMultiFolds
 #' @importFrom glmnet cv.glmnet glmnet
-#' @importFrom magrittr %>%
+#' @importFrom magrittr %$%
 #' @importFrom mboost Binomial bbs bols boost_control cv cvrisk gamboost
 #'   glmboost mstop mstop<- varimp
 #' @importFrom purrr imap map map2 pmap
