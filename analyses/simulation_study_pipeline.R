@@ -15,7 +15,8 @@ tar_source()
 tar_option_set(
     packages = c("data.table", "purrr", "magrittr", "caret", "glmnet", "mboost", "stabs"),
     format = "qs",
-    controller = crew_controller_local(workers = 4)
+    controller = crew_controller_local(workers = 4),
+    seed = 119752361
 )
 
 # Name of the binary outcome column in the simulated data
