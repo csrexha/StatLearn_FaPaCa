@@ -201,6 +201,14 @@ fit_glmboost <- function(data, binary_class, features = NULL, cores = 4) {
 #' @noRd
 make_gamboost_formula <- function(data, binary_class, features = NULL) {
 
+    if (!binary_class %in% names(data)) {
+        stop(sprintf("Column '%s' not found in data.", binary_class))
+    }
+
+    if ("Intercept" %in% names(data)) {
+        stop("The data must not contain a column named 'Intercept'; it is used internally by fit_gamboost().")
+    }
+
     if (is.null(features)) {
         features <- setdiff(names(data), binary_class)
     }
@@ -227,7 +235,7 @@ make_gamboost_formula <- function(data, binary_class, features = NULL) {
 #'
 #' @description
 #' Fits a logistic [mboost::gamboost()] model (`Binomial(link = "logit")`, step length
-#' `nu = 0.1`) to each data set in a list and chooses the number of boosting iterations.
+#' `nu = 0.1`) to a data set and chooses the number of boosting iterations.
 #' Every feature gets a linear base-learner and numeric features also a centred smooth
 #' base-learner; see the details.
 #'
@@ -245,59 +253,51 @@ make_gamboost_formula <- function(data, binary_class, features = NULL) {
 #' then chosen by bootstrap resampling stratified by the outcome ([mboost::cvrisk()] with
 #' `cores` cores).
 #'
-#' @param data A list of data.tables, one per data set. Each contains the two-level factor
-#'   `binary_class` (levels 0 and 1) and the predictors.
+#' @param data A data frame or data.table containing the two-level factor `binary_class`
+#'   (levels 0 and 1) and the predictors.
 #' @param binary_class Name of the binary outcome column.
 #' @param features Character vector of the predictors to use. Default `NULL` uses all
 #'   columns except `binary_class`.
-#' @param cores Number of cores used by [mboost::cvrisk()]. Default 10.
+#' @param cores Number of cores used by [mboost::cvrisk()]. Default 1.
 #'
-#' @returns A list of [mboost::gamboost()] models, one per data set.
+#' @returns An [mboost::gamboost()] model.
 #' @export
-fit_gamboost <- function(data, binary_class, features = NULL, cores = 10) {
+fit_gamboost <- function(data, binary_class, features = NULL, cores = 1) {
 
-    fit_list <- data |>
-        purrr::map(
-            function(data) {
+    model <- make_gamboost_formula(data, binary_class, features)
 
-                model <- make_gamboost_formula(data, binary_class, features)
+    # setting initial number of iteration
+    iter <- 50
 
-                # setting initial number of iteration
-                iter <- 50
+    # fit the logistic boosting model
+    fit <- mboost::gamboost(formula = model,
+                            data = cbind(data, Intercept = 1),
+                            family = mboost::Binomial(link = "logit"),
+                            control = mboost::boost_control(mstop = iter, nu = 0.1))
 
-                # fit the logistic boosting model
-                fit <- mboost::gamboost(formula = model,
-                                        data = cbind(data, Intercept = 1),
-                                        family = mboost::Binomial(link = "logit"),
-                                        control = mboost::boost_control(mstop = iter, nu = 0.1))
+    # adjust the number of iteration using AIC (logit link only)
+    aic <- stats::AIC(fit, method = "classical")
 
-                # adjust the number of iteration using AIC (logit link only)
-                aic <- stats::AIC(fit, method = "classical")
+    while(iter <= mboost::mstop(aic) * 1.2 && iter < 1000){
+        iter <- iter + 50
+        mboost::mstop(fit) <- iter
+        aic <- stats::AIC(fit, method = "classical")
+    }
 
-                while(iter <= mboost::mstop(aic) * 1.2 && iter < 1000){
-                    iter <- iter + 50
-                    mboost::mstop(fit) <- iter
-                    aic <- stats::AIC(fit, method = "classical")
-                }
+    # set a resampling scheme.
+    rsmp <- mboost::cv(model.weights(fit),
+                        type = "bootstrap",
+                        strata = fit$response)
 
-                # set a resampling scheme.
-                rsmp <- mboost::cv(model.weights(fit),
-                                   type = "bootstrap",
-                                   strata = fit$response)
+    # using resampling to search for the optimal iteration.
+    fit_cvrisk <- mboost::cvrisk(fit,
+                                    folds = rsmp,
+                                    mc.cores = cores)
 
-                # using resampling to search for the optimal iteration.
-                fit_cvrisk <- mboost::cvrisk(fit,
-                                             folds = rsmp,
-                                             mc.cores = cores)
+    # set the mstop to optimal mstop
+    mboost::mstop(fit) <- mboost::mstop(fit_cvrisk)
 
-                # set the mstop to optimal mstop
-                mboost::mstop(fit) <- mboost::mstop(fit_cvrisk)
-
-                return(fit)
-            }
-        )
-
-    return(fit_list)
+    return(fit)
 }
 
 #' Extract the selected features of adaptive lasso models
