@@ -14,6 +14,7 @@
 #' @importFrom stabs stabsel subsample
 #' @importFrom stats AIC as.formula coef formula make.link model.weights predict qt
 #'   rbinom rnorm runif sd
+#' @importFrom dplyr mutate
 # Imports: end ----
 
 NULL
