@@ -46,59 +46,27 @@ binary_data_generator <- function(N, P, p_ref, tau, sigma, rho, link = "logit"){
     return(list(y = y, x = x))
 }
 
-#' Generate data sets for the simulation study
+#' Generate a data set for the simulation study
 #'
 #' @description
-#' Generates data sets with [binary_data_generator()] for every combination of the
-#' parameters. The defaults (N = 50, P = 500, p_ref = 10,
-#' tau = -9, sigma = 10 and rho drawn from `runif(10, 0.05, 0.95)`) reflect an
-#' unbalanced class proportion.
+#' Generates one data set with [binary_data_generator()], converting the outcome to
+#' a factor and the predictor matrix to named columns.
 #'
-#' @details
-#' Vector-valued parameters are crossed, so that e.g. `N = rep(c(30, 50, 100), each = 100)`
-#' gives 300 data sets. All data sets are drawn one after the other from a single random
-#' stream started by `seed`.
+#' @param N, P, p_ref, tau, sigma, rho Arguments passed to
+#'   [binary_data_generator()].
 #'
-#' @param N,P,p_ref,tau,sigma See [binary_data_generator()]. A vector gives one data set
-#'   per element (times `n`).
-#' @param rho Correlation. A vector gives one data set per element, like the other
-#'   parameters. If `NULL` (default), one vector `runif(10, 0.05, 0.95)` is drawn and used
-#'   for every data set.
-#'
-#' @returns A list of data.tables, each with a factor `y` (levels 0 and 1) and numeric
-#'   columns `X1`, ..., `XP`.
+#' @returns A data.table with factor column `y` and numeric predictor columns
+#'   `X1`, ..., `XP`.
 #' @export
-get_simulated_data <- function(
-        N = 50,
-        P = 500,
-        p_ref = 10,
-        tau = -9,
-        sigma = 10,
-        rho = NULL) {
+get_simulated_data <- function(N, P, p_ref, tau, sigma, rho) {
 
-    if (is.null(rho)) {
-        rho <- list(runif(10, 0.05, 0.95))
-    } else {
-        rho <- as.list(rho)
-    }
+    simulated_data <- binary_data_generator(N, P, p_ref, tau, sigma, rho) |>
+        as.data.table()
 
-    CJ(
-        N = N,
-        P = P,
-        p_ref = p_ref,
-        tau = tau,
-        sigma = sigma,
-        rho = rho,
-        sorted = FALSE
-        ) |>
-        pmap(
-            function(N, P, p_ref, tau, sigma, rho) {
-                binary_data_generator(N, P, p_ref, tau, sigma, rho) |>
-                    as.data.table() |>
-                    _[, y := as.factor(y)] |>
-                    setnames(old = paste0("x.V", 1:P), new = paste0("X", 1:P))
-                }
-        )
+    simulated_data[, y := as.factor(y)]
+    setnames(simulated_data, old = paste0("x.V", 1:P), new = paste0("X", 1:P))
+
+    return(simulated_data)
 }
 
 #' Split simulated data sets into standardised training and test sets
