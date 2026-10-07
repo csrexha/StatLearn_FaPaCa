@@ -8,6 +8,7 @@
 library(targets)
 library(crew)
 library(tarchetypes)
+library(data.table)
 
 # Run the R scripts in the R/ folder with your custom functions:
 tar_source()
@@ -23,6 +24,19 @@ tar_option_set(
 # Name of the binary outcome column in the simulated data
 binary_class <- "y"
 
+scenario_grid <- make_simulation_senario(
+    default = data.table(N = 50, P = 500, p_ref = 10, tau = -9, sigma = 10,
+                         rho=list(runif(10, 0.05, 0.95))),
+    values = list(
+        N = c(30L, 50L, 100L),
+        P = c(100L, 500L, 5000L),
+        p_ref = c(2L, 5L, 10L, 20L),
+        tau = c(0L, -2L, -4L, -6L),
+        rho = c(0.1, 0.3, 0.5, 0.7)
+    )
+)
+
+
 # Pipeline
 list(
     # Simulation experiment 1 --------------------------------------------------------------
@@ -30,7 +44,14 @@ list(
     # 1.1. Generate simulation data and rescale the data for cross-validation
     tar_rep(
         name = e1_simulated_data,
-        command = get_simulated_data(),
+        command = get_simulated_data(
+            N = 50,
+            P = 500,
+            p_ref = 10,
+            tau = -9,
+            sigma = 10,
+            rho=list(runif(10, 0.05, 0.95))
+        ),
         batches = 10,
         reps = 10
     ),
@@ -90,114 +111,52 @@ list(
 
     # Simulation experiment 2 --------------------------------------------------------------
 
-    # 2.1. Generate simulation data with varying parameters N, P, p_ref, tau and rho
-    tar_target(
-        name = e2_simulated_data_N,
-        command = get_simulated_data(N = rep(c(30, 50, 100), each = 100))
-    ),
-    tar_target(
-        name = e2_simulated_data_P,
-        command = get_simulated_data(P = rep(c(100, 500, 5000), each = 100))
-    ),
-    tar_target(
-        name = e2_simulated_data_pref,
-        command = get_simulated_data(p_ref = rep(c(2, 5, 10, 20), each = 100))
-    ),
-    tar_target(
-        name = e2_simulated_data_tau,
-        command = get_simulated_data(tau = rep(c(0, -2, -4, -6), each = 100))
-    ),
-    tar_target(
-        name = e2_simulated_data_rho,
-        command = get_simulated_data(rho = rep(c(0.1, 0.3, 0.5, 0.7), each = 100))
-    ),
+    tar_map(
+        values = scenario_grid,
+        names = tidyselect::any_of("scenario"),
 
-    # 2.2. Stability selection using adaptive lasso
-    tar_target(
-        name = e2_stabsel_adaptive_lasso_N,
-        command = run_cpss_adaptive_lasso(e2_simulated_data_N,
-                                          binary_class = binary_class,
-                                          features = NULL,
-                                          q = 10,
-                                          PFER = 2)
-    ),
-    tar_target(
-        name = e2_stabsel_adaptive_lasso_P,
-        command = run_cpss_adaptive_lasso(e2_simulated_data_P,
-                                          binary_class = binary_class,
-                                          features = NULL,
-                                          q = 10,
-                                          PFER = 2)
-    ),
-    tar_target(
-        name = e2_stabsel_adaptive_lasso_pref,
-        command = run_cpss_adaptive_lasso(e2_simulated_data_pref,
-                                          binary_class = binary_class,
-                                          features = NULL,
-                                          q = 10,
-                                          PFER = 2)
-    ),
-    tar_target(
-        name = e2_stabsel_adaptive_lasso_tau,
-        command = run_cpss_adaptive_lasso(e2_simulated_data_tau,
-                                          binary_class = binary_class,
-                                          features = NULL,
-                                          q = 10,
-                                          PFER = 2)
-    ),
-    tar_target(
-        name = e2_stabsel_adaptive_lasso_rho,
-        command = run_cpss_adaptive_lasso(e2_simulated_data_rho,
-                                          binary_class = binary_class,
-                                          features = NULL,
-                                          q = 10,
-                                          PFER = 2)
-    ),
+        # 2.1. Generate simulation data with varying parameters N, P, p_ref, tau and rho
+        tar_rep(
+            name = e2_simulated_data,
+            command = list( data = get_simulated_data(
+                N = N,
+                P = P,
+                p_ref = p_ref,
+                tau = tau,
+                sigma = sigma,
+                rho = rho
+            )),
+            batches = 5,
+            reps = 20,
+            iteration = "list"
+        ),
 
-    # 2.3. Stability selection using glmboost
-    tar_target(
-        name = e2_stabsel_glmboost_N,
-        command = run_cpss_glmboost(e2_simulated_data_N,
-                                    binary_class = binary_class,
-                                    features = NULL,
-                                    iter = 500,
-                                    q = 10,
-                                    PFER = 2)
-    ),
-    tar_target(
-        name = e2_stabsel_glmboost_P,
-        command = run_cpss_glmboost(e2_simulated_data_P,
-                                    binary_class = binary_class,
-                                    features = NULL,
-                                    iter = 500,
-                                    q = 10,
-                                    PFER = 2)
-    ),
-    tar_target(
-        name = e2_stabsel_glmboost_pref,
-        command = run_cpss_glmboost(e2_simulated_data_pref,
-                                    binary_class = binary_class,
-                                    features = NULL,
-                                    iter = 500,
-                                    q = 10,
-                                    PFER = 2)
-    ),
-    tar_target(
-        name = e2_stabsel_glmboost_tau,
-        command = run_cpss_glmboost(e2_simulated_data_tau,
-                                    binary_class = binary_class,
-                                    features = NULL,
-                                    iter = 500,
-                                    q = 10,
-                                    PFER = 2)
-    ),
-    tar_target(
-        name = e2_stabsel_glmboost_rho,
-        command = run_cpss_glmboost(e2_simulated_data_rho,
-                                    binary_class = binary_class,
-                                    features = NULL,
-                                    iter = 500,
-                                    q = 10,
-                                    PFER = 2)
+        # 2.2. Stability selection using adaptive lasso and glmboost
+        tar_rep2(
+            name = e2_stabsel_adaptive_lasso,
+            command = cpss_adaptive_lasso(
+                e2_simulated_data$data,
+                binary_class = binary_class,
+                features = NULL,
+                q = 10,
+                PFER = 2
+            ),
+            e2_simulated_data,
+            iteration = "list"
+        ),
+
+        tar_rep2(
+            name = e2_stabsel_glmboost,
+            command = cpss_glmboost(
+                e2_simulated_data$data,
+                binary_class = binary_class,
+                features = NULL,
+                iter = 500,
+                q = 10,
+                PFER = 2
+            ),
+            e2_simulated_data,
+            iteration = "list"
+        )
     )
 )
