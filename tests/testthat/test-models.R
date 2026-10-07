@@ -1,78 +1,82 @@
-# Models are fitted once and shared by the tests below.
-set.seed(10)
-cv    <- cv_fixture(n = 2, N = 80, P = 10, p_ref = 3)
+# Fit small fixtures once and share them between tests.
+cv <- cv_fixture(n = 1, N = 80, P = 10, p_ref = 3)[[1]]
 train <- get_train_cv_data(cv)
-test  <- get_test_cv_data(cv)
-ridge <- fit_ridge(train, binary_class = "y")
-adalasso <- fit_adaptive_lasso(train, binary_class = "y")
-glmb  <- fit_glmboost(train, binary_class = "y", seed = 1, cores = 2)
+test <- get_test_cv_data(cv)
+ridge <- withr::with_seed(10, fit_ridge(train, binary_class = "y"))
+adalasso <- withr::with_seed(10, fit_adaptive_lasso(train, binary_class = "y"))
+glmb <- withr::with_seed(10, fit_glmboost(train, binary_class = "y", cores = 2))
 
 predictors <- paste0("X", 1:10)
 
 # fit_ridge ------------------------------------------------------------------
 
-test_that("fit_ridge returns one cv.glmnet model per data set", {
-    expect_length(ridge, 2)
-    for (m in ridge) {
-        expect_s3_class(m, "cv.glmnet")
-        expect_equal(m$glmnet.fit$dim[1], 10)
-    }
+test_that("fit_ridge returns a cv.glmnet model", {
+    expect_s3_class(ridge, "cv.glmnet")
+    expect_equal(ridge$glmnet.fit$dim[1], 10)
 })
 
 test_that("fit_ridge does not shrink any coefficient to exactly zero", {
-    coefs <- as.vector(coef(ridge[[1]], s = "lambda.min"))[-1]
+    coefs <- as.vector(coef(ridge, s = "lambda.min"))[-1]
 
     expect_true(all(coefs != 0))
 })
 
 test_that("fit_ridge respects features and binary_class", {
-    sub <- fit_ridge(train, binary_class = "y", features = c("X1", "X2"))
-    expect_equal(sub[[1]]$glmnet.fit$dim[1], 2)
+    sub <- withr::with_seed(
+        10, fit_ridge(train, binary_class = "y", features = c("X1", "X2"))
+    )
+    expect_equal(sub$glmnet.fit$dim[1], 2)
 
-    renamed <- lapply(train, function(d) data.table::setnames(data.table::copy(d), "y", "outcome"))
-    expect_equal(fit_ridge(renamed, binary_class = "outcome")[[1]]$glmnet.fit$dim[1], 10)
+    renamed <- data.table::copy(train)
+    data.table::setnames(renamed, "y", "outcome")
+    renamed_fit <- withr::with_seed(
+        10, fit_ridge(renamed, binary_class = "outcome")
+    )
+    expect_equal(renamed_fit$glmnet.fit$dim[1], 10)
 })
 
 # fit_adaptive_lasso ---------------------------------------------------------
 
-test_that("fit_adaptive_lasso returns one cv.glmnet model per data set", {
-    expect_length(adalasso, 2)
-    for (m in adalasso) {
-        expect_s3_class(m, "cv.glmnet")
-        expect_equal(m$glmnet.fit$dim[1], 10)
-        expect_true(all(is.finite(as.vector(coef(m, s = "lambda.min")))))
-    }
+test_that("fit_adaptive_lasso returns a finite cv.glmnet model", {
+    expect_s3_class(adalasso, "cv.glmnet")
+    expect_equal(adalasso$glmnet.fit$dim[1], 10)
+    expect_true(all(is.finite(as.vector(coef(adalasso, s = "lambda.min")))))
 })
 
 test_that("fit_adaptive_lasso respects features and binary_class", {
-    sub <- fit_adaptive_lasso(train, binary_class = "y", features = c("X1", "X2", "X3"))
-    expect_equal(sub[[1]]$glmnet.fit$dim[1], 3)
+    sub <- withr::with_seed(
+        10, fit_adaptive_lasso(train, binary_class = "y", features = c("X1", "X2", "X3"))
+    )
+    expect_equal(sub$glmnet.fit$dim[1], 3)
 
-    renamed <- lapply(train, function(d) data.table::setnames(data.table::copy(d), "y", "outcome"))
-    expect_equal(fit_adaptive_lasso(renamed, binary_class = "outcome")[[1]]$glmnet.fit$dim[1], 10)
+    renamed <- data.table::copy(train)
+    data.table::setnames(renamed, "y", "outcome")
+    renamed_fit <- withr::with_seed(
+        10, fit_adaptive_lasso(renamed, binary_class = "outcome")
+    )
+    expect_equal(renamed_fit$glmnet.fit$dim[1], 10)
 })
 
 # fit_glmboost ---------------------------------------------------------------
 
-test_that("fit_glmboost returns one glmboost model per data set with a valid mstop", {
-    expect_length(glmb, 2)
-    for (m in glmb) {
-        expect_s3_class(m, "glmboost")
-        expect_gte(mboost::mstop(m), 1)
-        expect_lte(mboost::mstop(m), 1000)
-    }
+test_that("fit_glmboost returns a model with a valid mstop", {
+    expect_s3_class(glmb, "glmboost")
+    expect_gte(mboost::mstop(glmb), 1)
+    expect_lte(mboost::mstop(glmb), 1000)
 })
 
-test_that("fit_glmboost is reproducible for a fixed seed", {
-    again <- fit_glmboost(train, binary_class = "y", seed = 1, cores = 2)
+test_that("fit_glmboost is reproducible for a fixed RNG seed", {
+    again <- withr::with_seed(10, fit_glmboost(train, binary_class = "y", cores = 2))
 
-    expect_equal(mboost::mstop(again[[1]]), mboost::mstop(glmb[[1]]))
-    expect_equal(coef(again[[1]]), coef(glmb[[1]]))
+    expect_equal(mboost::mstop(again), mboost::mstop(glmb))
+    expect_equal(coef(again), coef(glmb))
 })
 
-test_that("fit_glmboost restricts the model to the requested features", {
-    sub <- fit_glmboost(train, binary_class = "y", features = c("X1", "X2"), seed = 1, cores = 2)
-    learners <- setdiff(colnames(mboost::extract(sub[[1]], "design")), "(Intercept)")
+test_that("fit_glmboost restricts the model to requested features", {
+    sub <- withr::with_seed(
+        10, fit_glmboost(train, binary_class = "y", features = c("X1", "X2"), cores = 2)
+    )
+    learners <- setdiff(colnames(mboost::extract(sub, "design")), "(Intercept)")
 
     expect_setequal(learners, c("X1", "X2"))
 })
@@ -102,61 +106,78 @@ test_that("make_gamboost_formula uses all other columns when features is NULL", 
     expect_false(any(grepl("^bbs\\(sex", labels)))
 })
 
-test_that("fit_gamboost returns one gamboost model per data set", {
-    fits <- fit_gamboost(gam_fixture(2), binary_class = "y", features = c("age", "sex"), seed = 1, cores = 2)
+test_that("fit_gamboost fits a model with the requested base-learners", {
+    dat <- gam_fixture(1)[[1]]
+    fit <- withr::with_seed(
+        10, fit_gamboost(dat, binary_class = "y", features = c("age", "sex"), cores = 2)
+    )
 
-    expect_length(fits, 2)
-    for (m in fits) {
-        expect_s3_class(m, "gamboost")
-        expect_gte(mboost::mstop(m), 1)
-        bnames <- names(m$baselearner)
-        expect_true(any(grepl("^bbs\\(age", bnames)))
-        expect_true(any(grepl("^bols\\(sex", bnames)))
-        expect_false(any(grepl("^bbs\\(sex", bnames)))
-        expect_true(any(grepl("^bols\\(Intercept", bnames)))
-    }
+    expect_s3_class(fit, "gamboost")
+    expect_gte(mboost::mstop(fit), 1)
+    bnames <- names(fit$baselearner)
+    expect_true(any(grepl("^bbs\\(age", bnames)))
+    expect_true(any(grepl("^bols\\(sex", bnames)))
+    expect_false(any(grepl("^bbs\\(sex", bnames)))
+    expect_true(any(grepl("^bols\\(Intercept", bnames)))
 })
 
 # extract_adalasso_selected_features -----------------------------------------
 
-test_that("extract_adalasso_selected_features returns Simulation and variable", {
+test_that("extract_adalasso_selected_features returns selected predictors", {
     sel <- extract_adalasso_selected_features(adalasso)
 
     expect_s3_class(sel, "data.table")
-    expect_named(sel, c("Simulation", "variable"))
+    expect_named(sel, "variable")
     expect_true(all(sel$variable %in% predictors))
-    expect_true(all(sel$Simulation %in% 1:2))
 })
 
 test_that("extract_adalasso_selected_features gives no rows for a model that selects nothing", {
-    d <- train[[1]]
-    x <- as.matrix(d[, !"y"])
-    y <- as.numeric(d$y) - 1
-    empty <- glmnet::cv.glmnet(x, y, family = "binomial",
-                               lambda = c(100, 50),  # far above lambda.max: no coefficient is non-zero
-                               foldid = rep(1:5, length.out = nrow(x)))
+    x <- as.matrix(train[, !"y"])
+    y <- as.numeric(train$y) - 1
+    empty <- withr::with_seed(
+        10,
+        glmnet::cv.glmnet(x, y, family = "binomial", lambda = c(100, 50),
+                          foldid = rep(1:5, length.out = nrow(x)))
+    )
 
-    sel <- extract_adalasso_selected_features(list(empty))
+    sel <- extract_adalasso_selected_features(empty)
     expect_equal(nrow(sel), 0)
 })
 
 # extract_glmboost_varimp ----------------------------------------------------
 
-test_that("extract_glmboost_varimp summarises the variable importance per model", {
+test_that("extract_glmboost_varimp returns sorted variable importance", {
     vi <- extract_glmboost_varimp(glmb)
 
     expect_s3_class(vi, "data.table")
-    expect_true(all(c("Variable", "blearner", "Simulation", "mrd", "msf", "selfreq") %in% names(vi)))
-    expect_true(all(vi$Simulation %in% 1:2))
-    expect_true(all(vi$mrd > 0))
-    expect_false(is.unsorted(rev(vi$selfreq)))
+    expect_true(all(c("Variable", "blearner", "reduction", "selfreq") %in% names(vi)))
+    expect_true(all(diff(vi$reduction) <= 0))
+})
+
+test_that("summarise_glmboost_varimp aggregates positive risk reductions", {
+    vi <- data.table::data.table(
+        Variable = c("x1", "x1", "x2"),
+        blearner = c("linear", "linear", "linear"),
+        tar_batch = c(1L, 1L, 1L),
+        tar_rep = c(1L, 1L, 1L),
+        tar_seed = c(1L, 1L, 1L),
+        reduction = c(2, 4, -1),
+        selfreq = c(0.5, 1, 0)
+    )
+
+    out <- summarise_glmboost_varimp(vi)
+    expect_s3_class(out, "data.table")
+    expect_equal(nrow(out), 1)
+    expect_equal(out$mrd, 3)
+    expect_equal(out$msf, 0.75)
+    expect_equal(out$selfreq, 2L)
 })
 
 # test-set predictions -------------------------------------------------------
 
 expect_valid_prediction <- function(pred, newdata) {
     expect_s3_class(pred, "data.table")
-    expect_equal(nrow(pred), sum(vapply(newdata, nrow, integer(1))))
+    expect_equal(nrow(pred), nrow(newdata))
     expect_true(all(c("y", "response", "predict") %in% names(pred)))
     expect_s3_class(pred$y, "factor")
     expect_true(all(pred$response >= 0 & pred$response <= 1))
@@ -173,10 +194,5 @@ test_that("get_adalasso_test_prediction returns response and class for every tes
 })
 
 test_that("get_glmboost_test_prediction returns response and class for every test row", {
-    pred <- get_glmboost_test_prediction(glmb, test)
-
-    expect_valid_prediction(pred, test)
-    expect_true("Simulation" %in% names(pred))
-    expect_equal(as.vector(table(pred$Simulation)),
-                 vapply(test, nrow, integer(1)))
+    expect_valid_prediction(get_glmboost_test_prediction(glmb, test), test)
 })

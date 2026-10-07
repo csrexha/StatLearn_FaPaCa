@@ -58,7 +58,9 @@ test_that("glmnet.adalasso supports unweighted fits and rejects an unknown type"
 # cpss_adaptive_lasso --------------------------------------------------------
 
 test_that("cpss_adaptive_lasso returns a stabsel object", {
-    res <- cpss_adaptive_lasso(one_data(), "y", features = NULL, q = q, PFER = PFER, seed = 1)
+    res <- withr::with_seed(
+        1, cpss_adaptive_lasso(one_data(), "y", features = NULL, q = q, PFER = PFER)
+    )
 
     expect_s3_class(res, "stabsel")
     expect_equal(res$q, q)
@@ -67,26 +69,30 @@ test_that("cpss_adaptive_lasso returns a stabsel object", {
 })
 
 test_that("cpss_adaptive_lasso is reproducible for a fixed seed", {
-    a <- cpss_adaptive_lasso(one_data(), "y", NULL, q, PFER, seed = 1)
-    b <- cpss_adaptive_lasso(one_data(), "y", NULL, q, PFER, seed = 1)
+    a <- withr::with_seed(1, cpss_adaptive_lasso(one_data(), "y", NULL, q, PFER))
+    b <- withr::with_seed(1, cpss_adaptive_lasso(one_data(), "y", NULL, q, PFER))
 
     expect_identical(a$phat, b$phat)
 })
 
 test_that("cpss_adaptive_lasso respects features and binary_class", {
     d <- one_data()
-    sub <- cpss_adaptive_lasso(d, "y", paste0("X", 1:10), q = 3, PFER = PFER, seed = 1)
+    sub <- withr::with_seed(
+        1, cpss_adaptive_lasso(d, "y", paste0("X", 1:10), q = 3, PFER = PFER)
+    )
     expect_equal(nrow(sub$phat), 10)
 
     renamed <- data.table::setnames(data.table::copy(d), "y", "outcome")
-    res <- cpss_adaptive_lasso(renamed, "outcome", NULL, q, PFER, seed = 1)
+    res <- withr::with_seed(1, cpss_adaptive_lasso(renamed, "outcome", NULL, q, PFER))
     expect_equal(nrow(res$phat), P)
 })
 
 # cpss_glmboost --------------------------------------------------------------
 
 test_that("cpss_glmboost returns a stabsel object", {
-    res <- cpss_glmboost(one_data(), "y", features = NULL, iter = 50, q = q, PFER = PFER, seed = 1)
+    res <- withr::with_seed(
+        1, cpss_glmboost(one_data(), "y", features = NULL, iter = 50, q = q, PFER = PFER)
+    )
 
     expect_s3_class(res, "stabsel")
     expect_equal(res$q, q)
@@ -94,8 +100,8 @@ test_that("cpss_glmboost returns a stabsel object", {
 })
 
 test_that("cpss_glmboost is reproducible for a fixed seed", {
-    a <- cpss_glmboost(one_data(), "y", NULL, iter = 50, q = q, PFER = PFER, seed = 1)
-    b <- cpss_glmboost(one_data(), "y", NULL, iter = 50, q = q, PFER = PFER, seed = 1)
+    a <- withr::with_seed(1, cpss_glmboost(one_data(), "y", NULL, iter = 50, q = q, PFER = PFER))
+    b <- withr::with_seed(1, cpss_glmboost(one_data(), "y", NULL, iter = 50, q = q, PFER = PFER))
 
     expect_identical(a$phat, b$phat)
 })
@@ -105,8 +111,12 @@ test_that("cpss_glmboost is reproducible for a fixed seed", {
 gam_one <- function() gam_fixture(1, N = 100)[[1]]
 
 test_that("cpss_gamboost returns a stabsel object and honours iter", {
-    short <- cpss_gamboost(gam_one(), "y", features = NULL, iter = 60, q = 3, PFER = PFER, seed = 1)
-    long  <- cpss_gamboost(gam_one(), "y", features = NULL, iter = 150, q = 3, PFER = PFER, seed = 1)
+    short <- withr::with_seed(
+        1, cpss_gamboost(gam_one(), "y", features = NULL, iter = 60, q = 3, PFER = PFER)
+    )
+    long  <- withr::with_seed(
+        1, cpss_gamboost(gam_one(), "y", features = NULL, iter = 150, q = 3, PFER = PFER)
+    )
 
     expect_s3_class(short, "stabsel")
     expect_equal(short$q, 3)
@@ -114,34 +124,8 @@ test_that("cpss_gamboost returns a stabsel object and honours iter", {
 })
 
 test_that("cpss_gamboost is reproducible for a fixed seed", {
-    a <- cpss_gamboost(gam_one(), "y", NULL, iter = 80, q = 3, PFER = PFER, seed = 1)
-    b <- cpss_gamboost(gam_one(), "y", NULL, iter = 80, q = 3, PFER = PFER, seed = 1)
+    a <- withr::with_seed(1, cpss_gamboost(gam_one(), "y", NULL, iter = 80, q = 3, PFER = PFER))
+    b <- withr::with_seed(1, cpss_gamboost(gam_one(), "y", NULL, iter = 80, q = 3, PFER = PFER))
 
     expect_identical(a$phat, b$phat)
-})
-
-# run_cpss_* -----------------------------------------------------------------
-
-test_that("run_cpss_adaptive_lasso runs on every data set with q = 10 and PFER = 2", {
-    dat <- sim_data(n = 2, N = 60, P = 100, p_ref = 4)
-    res <- run_cpss_adaptive_lasso(dat, "y", seed = 1)
-
-    expect_length(res, 2)
-    for (r in res) {
-        expect_s3_class(r, "stabsel")
-        expect_equal(r$q, 10)
-        expect_lte(r$PFER, 2)
-    }
-})
-
-test_that("run_cpss_glmboost runs on every data set with q = 10 and PFER = 2", {
-    dat <- sim_data(n = 2, N = 60, P = 100, p_ref = 4)
-    res <- run_cpss_glmboost(dat, "y", iter = 200, seed = 1)
-
-    expect_length(res, 2)
-    for (r in res) {
-        expect_s3_class(r, "stabsel")
-        expect_equal(r$q, 10)
-        expect_lte(r$PFER, 2)
-    }
 })

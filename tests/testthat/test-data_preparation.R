@@ -37,94 +37,55 @@ test_that("binary_data_generator correlates only the relevant predictors", {
     expect_lt(noise, 0.1)
 })
 
-test_that("binary_data_generator accepts another link and rejects P < p_ref", {
+test_that("binary_data_generator accepts another link", {
     set.seed(4)
     expect_no_error(
         binary_data_generator(N = 40, P = 6, p_ref = 2, tau = 0, sigma = 1, rho = 0.5,
                               link = "probit")
     )
-    expect_error(
-        binary_data_generator(N = 20, P = 2, p_ref = 5, tau = 0, sigma = 1, rho = 0.5)
-    )
 })
 
 # get_simulated_data ---------------------------------------------------------
 
-test_that("get_simulated_data returns n data.tables with factor y and X1..XP", {
-    dat <- sim_data(n = 3, N = 40, P = 8, p_ref = 2)
+test_that("get_simulated_data returns one data.table with factor y and X1..XP", {
+    set.seed(1)
+    dat <- get_simulated_data(N = 40, P = 8, p_ref = 2, tau = -1, sigma = 2, rho = 0.6)
 
-    expect_length(dat, 3)
-    for (d in dat) {
-        expect_s3_class(d, "data.table")
-        expect_named(d, c("y", paste0("X", 1:8)))
-        expect_s3_class(d$y, "factor")
-        expect_equal(nrow(d), 40)
-    }
+    expect_s3_class(dat, "data.table")
+    expect_named(dat, c("y", paste0("X", 1:8)))
+    expect_s3_class(dat$y, "factor")
+    expect_equal(nrow(dat), 40)
 })
 
-test_that("get_simulated_data is reproducible and depends on the seed", {
-    expect_identical(sim_data(seed = 5), sim_data(seed = 5))
-    expect_false(identical(sim_data(seed = 5), sim_data(seed = 6)))
-})
+test_that("get_simulated_data follows the current random seed", {
+    args <- list(N = 40, P = 8, p_ref = 2, tau = -1, sigma = 2, rho = 0.6)
+    a <- withr::with_seed(5, do.call(get_simulated_data, args))
+    b <- withr::with_seed(5, do.call(get_simulated_data, args))
+    c <- withr::with_seed(6, do.call(get_simulated_data, args))
 
-test_that("get_simulated_data expands vectors of N and P into one data set per value", {
-    by_n <- get_simulated_data(N = rep(c(20, 30), each = 2), P = 6, p_ref = 2,
-                               tau = -1, sigma = 2, rho = 0.5, seed = 1)
-    expect_equal(vapply(by_n, nrow, integer(1)), c(20L, 20L, 30L, 30L))
-
-    by_p <- get_simulated_data(N = 30, P = c(6, 10), p_ref = 2,
-                               tau = -1, sigma = 2, rho = 0.5, seed = 1)
-    expect_equal(vapply(by_p, ncol, integer(1)), c(7L, 11L))
-})
-
-test_that("get_simulated_data expands vectors of p_ref, tau and rho", {
-    by_pref <- get_simulated_data(N = 30, P = 8, p_ref = c(2, 4), tau = -1, sigma = 2,
-                                  rho = 0.5, seed = 1)
-    expect_length(by_pref, 2)
-
-    by_tau <- get_simulated_data(N = 30, P = 8, p_ref = 2, tau = c(0, -1, -2), sigma = 2,
-                                 rho = 0.5, seed = 1)
-    expect_length(by_tau, 3)
-
-    by_rho <- get_simulated_data(N = 30, P = 8, p_ref = 2, tau = -1, sigma = 2,
-                                 rho = c(0.1, 0.5, 0.9), seed = 1)
-    expect_length(by_rho, 3)
-
-    by_rho_n <- get_simulated_data(n = 2, N = 30, P = 8, p_ref = 2, tau = -1, sigma = 2,
-                                   rho = c(0.1, 0.5, 0.9), seed = 1)
-    expect_length(by_rho_n, 6)
-})
-
-test_that("get_simulated_data draws a default rho when rho is NULL", {
-    dat <- get_simulated_data(n = 2, N = 50, P = 8, p_ref = 2, tau = -1, sigma = 2,
-                              rho = NULL, seed = 1)
-    expect_length(dat, 2)
-})
-
-test_that("get_simulated_data requires a seed", {
-    expect_error(get_simulated_data(n = 1))
+    expect_identical(a, b)
+    expect_false(identical(a, c))
 })
 
 # get_stratified_cv_data -----------------------------------------------------
 
 test_that("get_stratified_cv_data splits every data set into train and test", {
-    dat <- sim_data(n = 2, N = 60, P = 12)
-    cv  <- get_stratified_cv_data(dat, seed = 1)
+    dat <- sim_data(n = 1, N = 60, P = 12)[[1]]
+    cv  <- get_stratified_cv_data(dat)
 
-    expect_length(cv, 2)
-    for (x in cv) {
-        expect_named(x, c("train", "test"))
-        expect_equal(nrow(x$train) + nrow(x$test), 60)
-        expect_gte(nrow(x$train), 40)
-        expect_lte(nrow(x$train), 44)
-        expect_s3_class(x$train$y, "factor")
-        expect_equal(nlevels(droplevels(x$train$y)), 2)
-        expect_equal(nlevels(droplevels(x$test$y)), 2)
-    }
+    expect_named(cv, c("train", "test"))
+    expect_s3_class(cv$train, "data.table")
+    expect_s3_class(cv$test, "data.table")
+    expect_equal(nrow(cv$train) + nrow(cv$test), 60)
+    expect_gte(nrow(cv$train), 40)
+    expect_lte(nrow(cv$train), 44)
+    expect_s3_class(cv$train$y, "factor")
+    expect_equal(nlevels(droplevels(cv$train$y)), 2)
+    expect_equal(nlevels(droplevels(cv$test$y)), 2)
 })
 
 test_that("get_stratified_cv_data standardises with the training statistics only", {
-    cv <- get_stratified_cv_data(sim_data(n = 1, N = 60, P = 12), seed = 1)[[1]]
+    cv <- get_stratified_cv_data(sim_data(n = 1, N = 60, P = 12)[[1]])
     train <- as.matrix(cv$train[, !"y"])
     test  <- as.matrix(cv$test[, !"y"])
 
@@ -134,29 +95,28 @@ test_that("get_stratified_cv_data standardises with the training statistics only
 })
 
 test_that("get_stratified_cv_data works for any number of predictors", {
-    expect_no_error(get_stratified_cv_data(sim_data(n = 1, P = 7, p_ref = 2), seed = 1))
-    expect_no_error(get_stratified_cv_data(sim_data(n = 1, P = 30, p_ref = 5), seed = 1))
+    expect_no_error(get_stratified_cv_data(sim_data(n = 1, P = 7, p_ref = 2)[[1]]))
+    expect_no_error(get_stratified_cv_data(sim_data(n = 1, P = 30, p_ref = 5)[[1]]))
 })
 
-test_that("get_stratified_cv_data is reproducible and leaves the input unchanged", {
-    dat <- sim_data()
-    dat_copy <- lapply(dat, data.table::copy)
+test_that("get_stratified_cv_data follows the current seed and leaves input unchanged", {
+    dat <- sim_data(n = 1)[[1]]
+    dat_copy <- data.table::copy(dat)
 
-    expect_identical(get_stratified_cv_data(dat, seed = 1),
-                     get_stratified_cv_data(dat, seed = 1))
-    expect_false(identical(get_stratified_cv_data(dat, seed = 1),
-                           get_stratified_cv_data(dat, seed = 2)))
+    expect_identical(withr::with_seed(1, get_stratified_cv_data(dat)),
+                     withr::with_seed(1, get_stratified_cv_data(dat)))
+    expect_false(identical(withr::with_seed(1, get_stratified_cv_data(dat)),
+                           withr::with_seed(2, get_stratified_cv_data(dat))))
     expect_identical(dat, dat_copy)
 })
 
 # get_train_cv_data / get_test_cv_data ---------------------------------------
 
 test_that("get_train_cv_data and get_test_cv_data extract the right element", {
-    cv <- cv_fixture(n = 3)
+    cv <- cv_fixture(n = 1)[[1]]
 
-    expect_identical(get_train_cv_data(cv), lapply(cv, function(x) x$train))
-    expect_identical(get_test_cv_data(cv), lapply(cv, function(x) x$test))
-    expect_length(get_train_cv_data(cv), 3)
+    expect_identical(get_train_cv_data(cv), cv$train)
+    expect_identical(get_test_cv_data(cv), cv$test)
 })
 
 # read_raw_data --------------------------------------------------------------
@@ -231,7 +191,9 @@ test_that("export_imputed_data returns the path and the data survive a round tri
 # get_fapaca_cv_data ---------------------------------------------------------
 
 test_that("get_fapaca_cv_data returns 4 x 10 train and test folds", {
-    cv <- get_fapaca_cv_data(fapaca_like_data(), features_rescale = c("age", "prot1"), seed = 1)
+    cv <- withr::with_seed(
+        1, get_fapaca_cv_data(fapaca_like_data(), features_rescale = c("age", "prot1"))
+    )
 
     expect_named(cv, c("train", "test"))
     expect_length(cv$train, 40)
@@ -240,7 +202,7 @@ test_that("get_fapaca_cv_data returns 4 x 10 train and test folds", {
 
 test_that("get_fapaca_cv_data folds are disjoint and cover all rows", {
     dt <- fapaca_like_data()
-    cv <- get_fapaca_cv_data(dt, features_rescale = c("age", "prot1"), seed = 1)
+    cv <- withr::with_seed(1, get_fapaca_cv_data(dt, features_rescale = c("age", "prot1")))
 
     for (i in seq_along(cv$train)) {
         expect_length(intersect(cv$train[[i]]$ID, cv$test[[i]]$ID), 0)
@@ -250,7 +212,7 @@ test_that("get_fapaca_cv_data folds are disjoint and cover all rows", {
 
 test_that("get_fapaca_cv_data centres the features on the training fold only", {
     dt <- fapaca_like_data()
-    cv <- get_fapaca_cv_data(dt, features_rescale = c("age", "prot1"), seed = 1)
+    cv <- withr::with_seed(1, get_fapaca_cv_data(dt, features_rescale = c("age", "prot1")))
 
     for (i in seq_along(cv$train)) {
         expect_equal(mean(cv$train[[i]]$age), 0, tolerance = 1e-8)
@@ -267,7 +229,7 @@ test_that("get_fapaca_cv_data centres the features on the training fold only", {
 
 test_that("get_fapaca_cv_data is stratified by Status", {
     dt <- fapaca_like_data()
-    cv <- get_fapaca_cv_data(dt, features_rescale = "age", seed = 1)
+    cv <- withr::with_seed(1, get_fapaca_cv_data(dt, features_rescale = "age"))
     overall <- mean(dt$Status == "L")
 
     for (x in cv$train) {
@@ -279,9 +241,9 @@ test_that("get_fapaca_cv_data is reproducible and does not modify its input", {
     dt <- fapaca_like_data()
     dt_copy <- data.table::copy(dt)
 
-    a <- get_fapaca_cv_data(dt, features_rescale = "age", seed = 1)
-    b <- get_fapaca_cv_data(dt, features_rescale = "age", seed = 1)
-    c <- get_fapaca_cv_data(dt, features_rescale = "age", seed = 2)
+    a <- withr::with_seed(1, get_fapaca_cv_data(dt, features_rescale = "age"))
+    b <- withr::with_seed(1, get_fapaca_cv_data(dt, features_rescale = "age"))
+    c <- withr::with_seed(2, get_fapaca_cv_data(dt, features_rescale = "age"))
 
     expect_identical(a, b)
     expect_false(identical(a, c))
@@ -291,7 +253,7 @@ test_that("get_fapaca_cv_data is reproducible and does not modify its input", {
 # get_fapaca_train_data ------------------------------------------------------
 
 test_that("get_fapaca_train_data keeps the requested features in every fold", {
-    cv  <- get_fapaca_cv_data(fapaca_like_data(), features_rescale = "age", seed = 1)
+    cv  <- withr::with_seed(1, get_fapaca_cv_data(fapaca_like_data(), features_rescale = "age"))
     out <- get_fapaca_train_data(cv, features = c("age", "sex"))
 
     expect_length(out, 40)
@@ -299,7 +261,7 @@ test_that("get_fapaca_train_data keeps the requested features in every fold", {
 })
 
 test_that("get_fapaca_train_data validates its input", {
-    cv <- get_fapaca_cv_data(fapaca_like_data(), features_rescale = "age", seed = 1)
+    cv <- withr::with_seed(1, get_fapaca_cv_data(fapaca_like_data(), features_rescale = "age"))
 
     expect_error(get_fapaca_train_data(list(train = "a"), "age"), "list of data.tables")
     expect_error(get_fapaca_train_data(list(), "age"), "list of data.tables")

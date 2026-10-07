@@ -21,4 +21,5 @@ dependencies = [
     "qs2",
     "missForest",
     "plyr",
+    "tarchetypes",
 ]

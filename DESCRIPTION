@@ -20,14 +20,15 @@ License: GPL (>= 2)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 Suggests: 
-    crew,
-    StatLearn,
+    statlearnfapaca,
     testthat (>= 3.0.0),
     withr
 Config/testthat/edition: 3
 Imports: 
     caret,
+    crew,
     data.table,
+    dplyr,
     glmnet (>= 5.0),
     magrittr,
     mboost,
@@ -37,5 +38,6 @@ Imports:
     qs2,
     stabs,
     stats,
+    tarchetypes,
     targets
 Config/roxygen2/version: 8.1.0

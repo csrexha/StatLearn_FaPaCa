@@ -4,13 +4,15 @@
 # list of `n` simulated data sets (columns: y, X1..XP)
 sim_data <- function(n = 2, N = 60, P = 12, p_ref = 3, tau = -1, sigma = 2,
                      rho = 0.6, seed = 1) {
-    get_simulated_data(n = n, N = N, P = P, p_ref = p_ref, tau = tau,
-                       sigma = sigma, rho = rho, seed = seed)
+    withr::with_seed(seed, lapply(seq_len(n), function(i) {
+        get_simulated_data(N = N, P = P, p_ref = p_ref, tau = tau,
+                           sigma = sigma, rho = rho)
+    }))
 }
 
 # stratified train/test split of simulated data sets
-cv_fixture <- function(...) {
-    get_stratified_cv_data(sim_data(...), seed = 2)
+cv_fixture <- function(..., seed = 2) {
+    withr::with_seed(seed, lapply(sim_data(...), get_stratified_cv_data))
 }
 
 # list of `n` data sets with a continuous (age), a binary (sex) and a noise

@@ -1,3 +1,35 @@
+#' Create simulation scenarios
+#'
+#' Creates a scenario for each candidate value supplied for each parameter, using
+#' `default` as the starting data for every scenario.
+#'
+#' @param default A data frame or data table containing the default parameter values.
+#' @param values A named list of candidate values. Each name identifies a parameter
+#'   column in `default`.
+#'
+#' @returns A data table containing the generated scenarios, with `parameter`, `level`,
+#'   and `scenario` columns followed by the columns from `default`.
+#' @export
+make_simulation_senario <- function(default, values) {
+
+    purrr::imap(values, \(candidate_values, parameter) {
+
+        scenario_dt <- purrr::map_dfr(1:length(candidate_values), function(x) default)
+        scenario_dt[[parameter]] <- candidate_values
+
+        scenario_dt |>
+            dplyr::mutate(
+                parameter = parameter,
+                level = candidate_values,
+                scenario = paste0(parameter, candidate_values),
+                .before = 1
+            )
+    }
+    ) |>
+        data.table::rbindlist()
+}
+
+
 #' Predict with an mboost model, split by base-learner
 #'
 #' @description

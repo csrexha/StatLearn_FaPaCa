@@ -15,17 +15,18 @@ tar_source()
 tar_option_set(
     packages = c("data.table", "purrr", "magrittr", "caret", "glmnet", "mboost", "stabs"),
     format = "qs",
-    controller = crew_controller_local(workers = 4)
+    controller = crew_controller_local(workers = 4,
+    seed = 1006613948)
 )
 
-# Specify the features to impute, e.g. age, sex, bmi, proteins etc.
-features_impute <- c("age", "sex")
+# Specify the features to impute, e.g. age, sex, biomarkers etc.
+features_impute <- c("age", "sex", "biomarker_1", "biormarker_2") # user-specify
 
-# Specify the features to be rescaled, e.g. age, bmi, proteins etc.
-features_rescale <- c("age")
+# Specify the features to be rescaled, e.g. age, biomarkers etc.
+features_rescale <- c("age", "biomarker_1", "biormarker_2") # user-specify
 
-# Specify the features for modelling, e.g. age, sex, bmi, proteins etc.
-features_model <- c("age", "sex")
+# Specify the features for modelling, e.g. age, sex, biomarkers etc.
+features_model <- c("age", "sex", "biomarker_1", "biormarker_2") # user-specify
 
 # Pipeline
 list(
@@ -87,8 +88,9 @@ list(
         name = fapaca_glmboost,
         command = fit_glmboost(fapaca_train_data,
                                binary_class = "Status",
-                               features = features_model,
-                               seed = 1006613948)
+                               features = features_model),
+        pattern = map(fapaca_train_data),
+        iteration = "list"
     ),
 
     # 2.2. Fit gamboost models to the training data
@@ -96,7 +98,8 @@ list(
         name = fapaca_gamboost,
         command = fit_gamboost(fapaca_train_data,
                                binary_class = "Status",
-                               features = features_model,
-                               seed = 1006613948)
+                               features = features_model),
+        pattern = map(fapaca_train_data),
+        iteration = "list"
     )
 )

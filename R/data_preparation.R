@@ -46,129 +46,81 @@ binary_data_generator <- function(N, P, p_ref, tau, sigma, rho, link = "logit"){
     return(list(y = y, x = x))
 }
 
-#' Generate data sets for the simulation study
+#' Generate a data set for the simulation study
 #'
 #' @description
-#' Generates data sets with [binary_data_generator()] for every combination of the
-#' parameters (repeated `n` times). The defaults (N = 50, P = 500, p_ref = 10,
-#' tau = -9, sigma = 10 and rho drawn from `runif(10, 0.05, 0.95)`) reflect an
-#' unbalanced class proportion.
+#' Generates one data set with [binary_data_generator()], converting the outcome to
+#' a factor and the predictor matrix to named columns.
 #'
-#' @details
-#' Vector-valued parameters are crossed, so that e.g. `N = rep(c(30, 50, 100), each = 100)`
-#' gives 300 data sets. All data sets are drawn one after the other from a single random
-#' stream started by `seed`.
+#' @param N,P,p_ref,tau,sigma,rho Arguments passed to
+#'   [binary_data_generator()].
 #'
-#' @param n Number of data sets per parameter combination.
-#' @param N,P,p_ref,tau,sigma See [binary_data_generator()]. A vector gives one data set
-#'   per element (times `n`).
-#' @param rho Correlation. A vector gives one data set per element, like the other
-#'   parameters. If `NULL` (default), one vector `runif(10, 0.05, 0.95)` is drawn and used
-#'   for every data set.
-#' @param seed Seed for reproducibility. Required, there is no default.
-#'
-#' @returns A list of data.tables, each with a factor `y` (levels 0 and 1) and numeric
-#'   columns `X1`, ..., `XP`.
+#' @returns A data.table with factor column `y` and numeric predictor columns
+#'   `X1`, ..., `XP`.
 #' @export
-get_simulated_data <- function(
-        n = 1,
-        N = 50,
-        P = 500,
-        p_ref = 10,
-        tau = -9,
-        sigma = 10,
-        rho = NULL,
-        seed) {
+get_simulated_data <- function(N, P, p_ref, tau, sigma, rho) {
 
-    set.seed(seed)
+    simulated_data <- binary_data_generator(N, P, p_ref, tau, sigma, rho) |>
+        as.data.table()
 
-    if (is.null(rho)) {
-        rho <- list(runif(10, 0.05, 0.95))
-    } else {
-        rho <- as.list(rho)
-    }
+    simulated_data[, y := as.factor(y)]
+    setnames(simulated_data, old = paste0("x.V", 1:P), new = paste0("X", 1:P))
 
-    CJ(
-        i = 1:n,
-        N = N,
-        P = P,
-        p_ref = p_ref,
-        tau = tau,
-        sigma = sigma,
-        rho = rho,
-        sorted = FALSE
-        ) |>
-        pmap(
-            function(i, N, P, p_ref, tau, sigma, rho) {
-                binary_data_generator(N, P, p_ref, tau, sigma, rho) |>
-                    as.data.table() |>
-                    _[, y := as.factor(y)] |>
-                    setnames(old = paste0("x.V", 1:P), new = paste0("X", 1:P))
-                }
-        )
+    return(simulated_data)
 }
 
-#' Split simulated data sets into standardised training and test sets
+#' Split a simulated data set into standardised training and test sets
 #'
 #' @description
-#' Splits each data set 70/30 into a training and a test set, stratified by `y`
-#' ([caret::createDataPartition()]). All predictors (every column except `y`) are then
-#' standardised with the mean and standard deviation of the training set, in both sets, so
-#' that no information from the test set enters the scaling.
+#' Splits a single data set 70/30 into a training and a test set, stratified by
+#' `y` using [caret::createDataPartition()]. All predictors (every column except
+#' `y`) are then standardised using the mean and standard deviation of the
+#' training set, and the same scaling is applied to the test set so that no
+#' information from the test data enters the centering or scaling.
 #'
-#' @param data A list of data.tables as returned by [get_simulated_data()]: a factor
-#'   column `y` and numeric predictors.
-#' @param seed Seed for reproducibility.
+#' @param data A data.table returned by [get_simulated_data()], with a factor
+#'   column `y` and numeric predictor columns.
 #'
-#' @returns A list with one element per data set, each a list with the data.tables `train`
-#'   and `test`.
+#' @returns A list with two elements: `train` and `test`, each a data.table.
 #' @export
-get_stratified_cv_data <- function(data, seed) {
+get_stratified_cv_data <- function(data) {
 
-    set.seed(seed)
+    cv_ind <- createDataPartition(data$y, p = 0.7, list = FALSE)
 
-    cv_ind <- map(data, function(x) createDataPartition(x$y, p = 0.7, list = FALSE))
+    # standardise the training and test data
+    vars <- setdiff(names(data), "y")
+    data_rescaled <- copy(data)[, c(vars) := lapply(.SD,
+        function(a) (a - mean(a[cv_ind])) / sd(a[cv_ind])), .SDcols = c(vars)]
 
-    ## standardise the training and test data ####
-    simulated_data_rescaled <- map2(
-        cv_ind,
-        data,
-        function(x, y){
-            vars <- setdiff(names(y), "y")
-            dat <- copy(y)[, c(vars):=lapply(.SD, function(a) (a - mean(a[x]))/sd(a[x])), .SDcols=c(vars)]
-            return(list(train = dat[x], test = dat[-x]))
-        }
-    )
-
-    return(simulated_data_rescaled)
+    return(list(train = data_rescaled[cv_ind], test = data_rescaled[-cv_ind]))
 }
 
-#' Extract the training sets
+#' Extract the training set
 #'
 #' @description
-#' Extracts the training set of each data set from the output of
-#' [get_stratified_cv_data()].
+#' Returns the training component from the output of [get_stratified_cv_data()].
 #'
-#' @param data A list as returned by [get_stratified_cv_data()].
+#' @param data A list returned by [get_stratified_cv_data()] with `train` and
+#'   `test` elements.
 #'
-#' @returns A list of training data.tables, one per data set.
+#' @returns The training data.table.
 #' @export
 get_train_cv_data <- function(data) {
-    map(data, function(x) x$train)
+    return(data$train)
 }
 
-#' Extract the test sets
+#' Extract the test set
 #'
 #' @description
-#' Extracts the test set of each data set from the output of
-#' [get_stratified_cv_data()].
+#' Returns the test component from the output of [get_stratified_cv_data()].
 #'
-#' @param data A list as returned by [get_stratified_cv_data()].
+#' @param data A list returned by [get_stratified_cv_data()] with `train` and
+#'   `test` elements.
 #'
-#' @returns A list of test data.tables, one per data set.
+#' @returns The test data.table.
 #' @export
 get_test_cv_data <- function(data) {
-    map(data, function(x) x$test)
+    return(data$test)
 }
 
 #' Read the raw data file
@@ -269,7 +221,6 @@ read_imputed_data <- function(file_path) {
 #'
 #' @param data A data.table with a factor column `Status` and the features to be centred.
 #' @param features_rescale Character vector of the columns to centre.
-#' @param seed Seed for reproducibility of the fold assignment. Default 91623978.
 #'
 #' @returns A list with two elements:
 #' \describe{
@@ -277,10 +228,7 @@ read_imputed_data <- function(file_path) {
 #'   \item{test}{A list of 40 test data.tables, one per fold, in the same order.}
 #' }
 #' @export
-get_fapaca_cv_data <- function(data, features_rescale, seed = 91623978) {
-
-    # Set seed for reproducible cross-validation fold generation
-    set.seed(seed)
+get_fapaca_cv_data <- function(data, features_rescale) {
 
     # Generate 10 repeats of 4-fold stratified cross-validation indices based on 'Status'
     cv_ind <- caret::createMultiFolds(data$Status, 4, 10)
