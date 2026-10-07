@@ -69,65 +69,58 @@ get_simulated_data <- function(N, P, p_ref, tau, sigma, rho) {
     return(simulated_data)
 }
 
-#' Split simulated data sets into standardised training and test sets
+#' Split a simulated data set into standardised training and test sets
 #'
 #' @description
-#' Splits each data set 70/30 into a training and a test set, stratified by `y`
-#' ([caret::createDataPartition()]). All predictors (every column except `y`) are then
-#' standardised with the mean and standard deviation of the training set, in both sets, so
-#' that no information from the test set enters the scaling.
+#' Splits a single data set 70/30 into a training and a test set, stratified by
+#' `y` using [caret::createDataPartition()]. All predictors (every column except
+#' `y`) are then standardised using the mean and standard deviation of the
+#' training set, and the same scaling is applied to the test set so that no
+#' information from the test data enters the centering or scaling.
 #'
-#' @param data A list of data.tables as returned by [get_simulated_data()]: a factor
-#'   column `y` and numeric predictors.
+#' @param data A data.table returned by [get_simulated_data()], with a factor
+#'   column `y` and numeric predictor columns.
 #'
-#' @returns A list with one element per data set, each a list with the data.tables `train`
-#'   and `test`.
+#' @returns A list with two elements: `train` and `test`, each a data.table.
 #' @export
 get_stratified_cv_data <- function(data) {
 
-    cv_ind <- map(data, function(x) createDataPartition(x$y, p = 0.7, list = FALSE))
+    cv_ind <- createDataPartition(data$y, p = 0.7, list = FALSE)
 
-    ## standardise the training and test data ####
-    simulated_data_rescaled <- map2(
-        cv_ind,
-        data,
-        function(x, y){
-            vars <- setdiff(names(y), "y")
-            dat <- copy(y)[, c(vars):=lapply(.SD, function(a) (a - mean(a[x]))/sd(a[x])),
-                           .SDcols=c(vars)]
-            return(list(train = dat[x], test = dat[-x]))
-        }
-    )
+    # standardise the training and test data
+    vars <- setdiff(names(data), "y")
+    data_rescaled <- copy(data)[, c(vars) := lapply(.SD,
+        function(a) (a - mean(a[cv_ind])) / sd(a[cv_ind])), .SDcols = c(vars)]
 
-    return(simulated_data_rescaled)
+    return(list(train = data_rescaled[cv_ind], test = data_rescaled[-cv_ind]))
 }
 
-#' Extract the training sets
+#' Extract the training set
 #'
 #' @description
-#' Extracts the training set of each data set from the output of
-#' [get_stratified_cv_data()].
+#' Returns the training component from the output of [get_stratified_cv_data()].
 #'
-#' @param data A list as returned by [get_stratified_cv_data()].
+#' @param data A list returned by [get_stratified_cv_data()] with `train` and
+#'   `test` elements.
 #'
-#' @returns A list of training data.tables, one per data set.
+#' @returns The training data.table.
 #' @export
 get_train_cv_data <- function(data) {
-    map(data, function(x) x$train)
+    return(data$train)
 }
 
-#' Extract the test sets
+#' Extract the test set
 #'
 #' @description
-#' Extracts the test set of each data set from the output of
-#' [get_stratified_cv_data()].
+#' Returns the test component from the output of [get_stratified_cv_data()].
 #'
-#' @param data A list as returned by [get_stratified_cv_data()].
+#' @param data A list returned by [get_stratified_cv_data()] with `train` and
+#'   `test` elements.
 #'
-#' @returns A list of test data.tables, one per data set.
+#' @returns The test data.table.
 #' @export
 get_test_cv_data <- function(data) {
-    map(data, function(x) x$test)
+    return(data$test)
 }
 
 #' Read the raw data file
