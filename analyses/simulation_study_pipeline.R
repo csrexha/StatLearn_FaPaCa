@@ -36,7 +36,6 @@ scenario_grid <- make_simulation_senario(
     )
 )
 
-
 # Pipeline
 list(
     # Simulation experiment 1 --------------------------------------------------------------
@@ -44,68 +43,115 @@ list(
     # 1.1. Generate simulation data and rescale the data for cross-validation
     tar_rep(
         name = e1_simulated_data,
-        command = get_simulated_data(
+        command = list(data = get_simulated_data(
             N = 50,
-            P = 500,
+            P = 10,
             p_ref = 10,
             tau = -9,
             sigma = 10,
-            rho=list(runif(10, 0.05, 0.95))
-        ),
-        batches = 10,
-        reps = 10
+            rho=runif(10, 0.05, 0.95)
+            )
+            ),
+        batches = 2,
+        reps = 2,
+        iteration = "list"
     ),
-    tar_target(
+    
+    tar_rep2(
         name = e1_scaled_cv_data,
-        command = get_stratified_cv_data(e1_simulated_data)
+        command = list(
+            data = get_stratified_cv_data(e1_simulated_data$data)
+            ),
+        e1_simulated_data,
+        iteration = "list"
     ),
 
     # 1.2. Split the scaled data into training and test sets for cross-validation
-    tar_target(
-        name = e1_train_data,
-        command = get_train_cv_data(e1_scaled_cv_data)
-    ),
-    tar_target(
-        name = e1_test_data,
-        command = get_test_cv_data(e1_scaled_cv_data)
+    tar_rep2(
+        name = e1_train_test_data,
+        command = list(
+            train = get_train_cv_data(e1_scaled_cv_data$data),
+            test = get_test_cv_data(e1_scaled_cv_data$data)
+            ),
+        e1_scaled_cv_data,
+        iteration = "list"
     ),
 
     # 1.3. Fit ridge, adaptive lasso and glmboost models to the training data
-    tar_target(
+    tar_rep2(
         name = e1_ridge,
-        command = fit_ridge(e1_train_data, binary_class = binary_class)
+        command = list(model = fit_ridge(
+            e1_train_test_data$train,
+            binary_class = binary_class
+        )),
+        e1_train_test_data,
+        iteration = "list"
     ),
-    tar_target(
+    tar_rep2(
         name = e1_adaptive_lasso,
-        command = fit_adaptive_lasso(e1_train_data, binary_class = binary_class)
+        command = list(model = fit_adaptive_lasso(
+            e1_train_test_data$train,
+            binary_class = binary_class
+        )),
+        e1_train_test_data,
+        iteration = "list"
     ),
-    tar_target(
+    tar_rep2(
         name = e1_glmboost,
-        command = fit_glmboost(e1_train_data, binary_class = binary_class)
+        command = list(model = fit_glmboost(
+            e1_train_test_data$train,
+            binary_class = binary_class
+        )),
+        e1_train_test_data,
+        iteration = "list"
     ),
 
     # 1.4. Get the test set predictions for ridge, adaptive lasso and glmboost
-    tar_target(
+    tar_rep2(
         name = e1_test_pred_ridge,
-        command = get_ridge_test_prediction(e1_ridge, e1_test_data)
+        command = get_ridge_test_prediction(
+            e1_ridge$model,
+            e1_train_test_data$test
+            ),
+        e1_ridge,
+        e1_train_test_data
     ),
-    tar_target(
+
+    tar_rep2(
         name = e1_test_pred_adaptive_lasso,
-        command = get_adalasso_test_prediction(e1_adaptive_lasso, e1_test_data)
+        command = get_adalasso_test_prediction(
+            e1_adaptive_lasso$model,
+            e1_train_test_data$test
+            ),
+        e1_adaptive_lasso,
+        e1_train_test_data
     ),
-    tar_target(
+
+    tar_rep2(
         name = e1_test_pred_glmboost,
-        command = get_glmboost_test_prediction(e1_glmboost, e1_test_data)
+        command = get_glmboost_test_prediction(
+            e1_glmboost$model,
+            e1_train_test_data$test
+            ),
+        e1_glmboost,
+        e1_train_test_data
     ),
 
     # 1.5. Extract the selected features (adaptive lasso) and the variable importance (glmboost)
-    tar_target(
+    tar_rep2(
         name = e1_selected_features_adaptive_lasso,
-        command = extract_adalasso_selected_features(e1_adaptive_lasso)
+        command = extract_adalasso_selected_features(e1_adaptive_lasso$model),
+        e1_adaptive_lasso
     ),
-    tar_target(
+    tar_rep2(
         name = e1_glmboost_varimp,
-        command = extract_glmboost_varimp(e1_glmboost)
+        command = extract_glmboost_varimp(e1_glmboost$model) ,
+        e1_glmboost
+    ),
+
+    tar_target(
+        name = e1_glmboost_varimp_summary,
+        command = summarise_glmboost_varimp(e1_glmboost_varimp)
     ),
 
 
