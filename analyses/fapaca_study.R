@@ -88,8 +88,9 @@ list(
         name = fapaca_glmboost,
         command = fit_glmboost(fapaca_train_data,
                                binary_class = "Status",
-                               features = features_model,
-                               seed = 1006613948)
+                               features = features_model),
+        pattern = map(fapaca_train_data),
+        iteration = "list"
     ),
 
     # 2.2. Fit gamboost models to the training data
@@ -97,7 +98,8 @@ list(
         name = fapaca_gamboost,
         command = fit_gamboost(fapaca_train_data,
                                binary_class = "Status",
-                               features = features_model,
-                               seed = 1006613948)
+                               features = features_model),
+        pattern = map(fapaca_train_data),
+        iteration = "list"
     )
 )
