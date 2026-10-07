@@ -52,8 +52,8 @@ list(
             rho=runif(10, 0.05, 0.95)
             )
             ),
-        batches = 2,
-        reps = 2,
+        batches = 5,
+        reps = 20,
         iteration = "list"
     ),
     

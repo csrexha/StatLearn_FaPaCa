@@ -1,8 +1,8 @@
 #' Fit ridge regression models
 #'
 #' @description
-#' Fits a ridge-penalised logistic regression ([glmnet::cv.glmnet()] with `alpha = 0`) to
-#' each data set in a list.
+#' Fits a ridge-penalised logistic regression ([glmnet::cv.glmnet()] with `alpha = 0`)
+#' to one data set.
 #'
 #' @details
 #' The penalty is chosen by 5-fold cross-validation of the binomial deviance over 500
@@ -10,53 +10,47 @@
 #' weight. The folds are drawn at random from the current RNG state (there is no `seed`
 #' argument).
 #'
-#' @param data A list of data.tables, one per data set. Each contains the two-level factor
-#'   `binary_class` (levels 0 and 1) and the predictors.
-#' @param binary_class Name of the binary outcome column.
+#' @param data A data.table containing the two-level factor `binary_class` (levels 0 and
+#'   1) and the predictors.
+#' @param binary_class Name of the binary outcome column in `data`.
 #' @param features Character vector of the predictors to use. Default `NULL` uses all
 #'   columns except `binary_class`.
 #'
-#' @returns A list of [glmnet::cv.glmnet()] objects, one per data set.
+#' @returns A [glmnet::cv.glmnet()] object.
 #' @export
 fit_ridge <- function(data, binary_class, features = NULL) {
 
-    ## perform ridge regression / L2-regularisation ####
-    data |>
-        map (
-            function(data) {
-
-                # convert data to matrix
-                if(!is.null(features)) {
-                    xmat <- as.matrix(data[, ..features])
-                } else {
-                    xmat <- as.matrix(data[, !..binary_class])
-                }
-
-                y <- as.numeric(data[[binary_class]]) - 1
-
-                # assign weights
-                w0 <- 0.5*length(y)/sum(y == 0)
-                w1 <- 0.5*length(y)/sum(y == 1)
-                w01 <- ifelse(y == 0, w0, w1)
-
-                foldid <- createFolds(as.factor(y), k = 5, list = FALSE)
-
-                # fit ridge regression
-                glmnet::cv.glmnet(x = xmat, y = y,
-                                  alpha = 0,
-                                  nlambda = 500,
-                                  weights = w01,
-                                  family = "binomial",
-                                  type.measure = "deviance",
-                                  foldid = foldid)
+    # convert data to matrix
+    if(!is.null(features)) {
+        xmat <- as.matrix(data[, ..features])
+        } else {
+            xmat <- as.matrix(data[, !..binary_class])
             }
-        )
+            
+    y <- as.numeric(data[[binary_class]]) - 1
+
+    # assign weights
+    w0 <- 0.5*length(y)/sum(y == 0)
+    w1 <- 0.5*length(y)/sum(y == 1)
+    w01 <- ifelse(y == 0, w0, w1)
+
+    foldid <- createFolds(as.factor(y), k = 5, list = FALSE)
+    
+    # fit ridge regression
+    glmnet::cv.glmnet(x = xmat, 
+                      y = y,
+                      alpha = 0,
+                      nlambda = 500,
+                      weights = w01,
+                      family = "binomial",
+                      type.measure = "deviance",
+                      foldid = foldid)
 }
 
 #' Fit adaptive lasso models
 #'
 #' @description
-#' Fits an adaptive lasso logistic regression to each data set in a list, in two steps:
+#' Fits an adaptive lasso logistic regression to a data set, in two steps:
 #' a ridge regression ([glmnet::cv.glmnet()] with `alpha = 0`) gives the coefficients at
 #' `lambda.min`, from which the penalty factors `1 / |coefficient|^2` are computed; then
 #' a lasso ([glmnet::cv.glmnet()] with `alpha = 1`) is fitted with these penalty factors.
@@ -66,57 +60,54 @@ fit_ridge <- function(data, binary_class, features = NULL) {
 #' weight, and the same 5 cross-validation folds. The folds are drawn at random from the
 #' current RNG state (there is no `seed` argument).
 #'
-#' @param data A list of data.tables, one per data set. Each contains the two-level factor
-#'   `binary_class` (levels 0 and 1) and the predictors.
-#' @param binary_class Name of the binary outcome column.
+#' @param data A data.table containing the two-level factor `binary_class` (levels 0 and
+#'   1) and the predictors.
+#' @param binary_class Name of the binary outcome column in `data`.
 #' @param features Character vector of the predictors to use. Default `NULL` uses all
 #'   columns except `binary_class`.
 #'
-#' @returns A list of [glmnet::cv.glmnet()] objects, one per data set.
+#' @returns A [glmnet::cv.glmnet()] object.
 #' @export
 fit_adaptive_lasso <- function(data, binary_class, features = NULL) {
-    data |>
-        map(
-            function(data) {
 
-                # convert data to matrix
-                if(!is.null(features)) {
-                    xmat <- as.matrix(data[, ..features])
-                } else {
-                    xmat <- as.matrix(data[, !..binary_class])
-                }
+    # convert data to matrix
+    if (!is.null(features)) {
+        xmat <- as.matrix(data[, ..features])
+    } else {
+        xmat <- as.matrix(data[, !..binary_class])
+    }
 
-                y <- as.numeric(data[[binary_class]]) - 1
+    y <- as.numeric(data[[binary_class]]) - 1
 
-                # assign weights
-                w0 <- 0.5 * length(y)/sum(y == 0)
-                w1 <- 0.5 * length(y)/sum(y == 1)
-                w01 <- ifelse(y == 0, w0, w1)
+    # assign weights
+    w0 <- 0.5 * length(y) / sum(y == 0)
+    w1 <- 0.5 * length(y) / sum(y == 1)
+    w01 <- ifelse(y == 0, w0, w1)
 
-                foldid <- createFolds(as.factor(y), k = 5, list = FALSE)
+    foldid <- createFolds(as.factor(y), k = 5, list = FALSE)
 
-                # estimate penalty factor (adpative weights) with ridge regression
-                l2fit <- cv.glmnet(x = xmat, y = y,
-                                   alpha = 0,
-                                   nlambda = 500,
-                                   weights = w01,
-                                   family = "binomial",
-                                   type.measure = "deviance",
-                                   foldid = foldid)
+    # estimate penalty factor (adaptive weights) with ridge regression
+    l2fit <- glmnet::cv.glmnet(x = xmat,
+                               y = y,
+                               alpha = 0,
+                               nlambda = 500,
+                               weights = w01,
+                               family = "binomial",
+                               type.measure = "deviance",
+                               foldid = foldid)
 
-                # obtain penalty factor
-                weight <- as.vector(1/abs(coef(l2fit, s = "lambda.min"))^2)[-1]
+    # obtain penalty factor
+    weight <- as.vector(1 / abs(coef(l2fit, s = "lambda.min"))^2)[-1]
 
-                # fit adalasso
-                cv.glmnet(x = xmat, y = y,
-                          alpha = 1,
-                          penalty.factor = weight,
-                          weights = w01,
-                          nlambda = 500,
-                          family = "binomial",
-                          foldid = foldid)
-            }
-        )
+    # fit adaptive lasso
+    glmnet::cv.glmnet(x = xmat,
+                      y = y,
+                      alpha = 1,
+                      penalty.factor = weight,
+                      weights = w01,
+                      nlambda = 500,
+                      family = "binomial",
+                      foldid = foldid)
 }
 
 
@@ -124,7 +115,7 @@ fit_adaptive_lasso <- function(data, binary_class, features = NULL) {
 #'
 #' @description
 #' Fits a logistic [mboost::glmboost()] model (`Binomial(type = "adaboost")`, step length
-#' `nu = 0.1`) to each data set in a list and chooses the number of boosting iterations.
+#' `nu = 0.1`) and chooses the number of boosting iterations.
 #'
 #' @details
 #' The number of iterations starts at 50 and is increased in steps of 50 (up to 1000)
@@ -132,64 +123,63 @@ fit_adaptive_lasso <- function(data, binary_class, features = NULL) {
 #' then chosen by bootstrap resampling stratified by the outcome ([mboost::cvrisk()] with
 #' `cores` cores).
 #'
-#' @param data A list of data.tables, one per data set. Each contains the two-level factor
-#'   `binary_class` (levels 0 and 1) and the predictors.
-#' @param binary_class Name of the binary outcome column.
+#' @param data A data.table containing the two-level factor `binary_class` (levels 0 and
+#'   1) and the predictors.
+#' @param binary_class Name of the binary outcome column in `data`.
 #' @param features Character vector of the predictors to use. Default `NULL` uses all
 #'   columns except `binary_class`.
 #' @param cores Number of cores used by [mboost::cvrisk()]. Default 4.
 #'
-#' @returns A list of [mboost::glmboost()] models, one per data set.
+#' @returns An [mboost::glmboost()] model.
 #' @export
 fit_glmboost <- function(data, binary_class, features = NULL, cores = 4) {
 
-    fit_list <- data |>
-        map(
-            function(data) {
+    if (!is.null(features)) {
+        model <- as.formula(paste0(
+            binary_class, " ~ ", paste(features, collapse = " + ")
+        ))
+    } else {
+        model <- formula(paste0(binary_class, " ~ ."))
+    }
 
-                if(!is.null(features)) {
-                    model <- as.formula(paste0(binary_class, "~",
-                                              paste(features, collapse = " + ")))
-                } else {
-                    model <- formula(paste0(binary_class, "~ ."))
-                }
+    # Set the initial number of iterations.
+    iter <- 50
 
-                # setting initial number of iteration
-                iter <- 50
+    # Fit the logistic boosting model.
+    fit <- mboost::glmboost(
+        model,
+        data = data,
+        family = mboost::Binomial(type = "adaboost", link = "logit"),
+        control = mboost::boost_control(mstop = iter, nu = 0.1)
+    )
 
-                # fit the logistic boosting model
-                fit <- glmboost(model,
-                                data = data,
-                                family = Binomial(type = "adaboost", link = "logit"),
-                                control = boost_control(mstop = iter, nu = 0.1))
+    # Adjust the number of iterations using AIC (logit link only).
+    aic <- AIC(fit, method = "classical")
 
-                # adjust the number of iteration using AIC (logit link only)
-                aic <- AIC(fit, method = "classical")
+    while (iter <= mboost::mstop(aic) * 1.2 && iter < 1000) {
+        iter <- iter + 50
+        mboost::mstop(fit) <- iter
+        aic <- AIC(fit, method = "classical")
+    }
 
-                while(iter <= mstop(aic) * 1.2 && iter < 1000){
-                    iter <- iter + 50
-                    mstop(fit) <- iter
-                    aic <- AIC(fit, method = "classical")
-                }
+    # Set a resampling scheme.
+    rsmp <- mboost::cv(
+        model.weights(fit),
+        type = "bootstrap",
+        strata = fit$response
+    )
 
-                # set a resampling scheme.
-                rsmp <- cv(model.weights(fit),
-                           type = "bootstrap",
-                           strata = fit$response)
+    # Search for the optimal iteration using resampling.
+    fit_cvrisk <- mboost::cvrisk(
+        fit,
+        folds = rsmp,
+        mc.cores = cores
+    )
 
-                # using resampling to search for the optimal iteration.
-                fit_cvrisk <- cvrisk(fit,
-                                     folds = rsmp,
-                                     mc.cores = cores)
-
-                # obtain the optimal model according to mstop
-                mstop(fit) <- mstop(fit_cvrisk)
-
-                # return fitted model
-                return(fit)
-            }
-        )
-    return(fit_list)
+    # Set the optimal number of iterations.
+    mboost::mstop(fit) <- mboost::mstop(fit_cvrisk)
+    
+    return(fit)
 }
 
 #' Build the formula of a gamboost model
@@ -313,133 +303,123 @@ fit_gamboost <- function(data, binary_class, features = NULL, cores = 10) {
 #' Extract the selected features of adaptive lasso models
 #'
 #' @description
-#' Extracts, for each fitted model, the predictors with a non-zero coefficient at
-#' `lambda.min`.
+#' Extracts the predictors with a non-zero coefficient at `lambda.min`.
 #'
-#' @param model A list of [glmnet::cv.glmnet()] models, e.g. from [fit_adaptive_lasso()].
+#' @param model A [glmnet::cv.glmnet()] model, e.g. one returned by
+#'   [fit_adaptive_lasso()].
 #'
-#' @returns A data.table with the columns `Simulation` (position of the model in the list)
-#'   and `variable` (name of a selected predictor). A model that selects nothing
-#'   contributes no rows.
+#' @returns A data.table with a `variable` column containing the names of selected
+#'   predictors. The intercept is excluded; if no predictors are selected, the table
+#'   has zero rows.
 #' @export
 extract_adalasso_selected_features <- function(model) {
 
-    model |>
-        imap(
-            function(x, idx){
-                coefs <- as.matrix(coef(x, s = "lambda.min"))
-                selected <- setdiff(rownames(coefs)[coefs[, 1] != 0], "(Intercept)")
-                return(data.table(Simulation = rep(idx, length(selected)),
-                                  variable = selected))
-            }
-        ) |>
-        rbindlist()
+    coefs <- as.matrix(coef(model, s = "lambda.min"))
+    
+    selected <- data.table(variable = setdiff(rownames(coefs)[coefs[, 1] != 0], "(Intercept)"))
+    
+    return(selected)
 }
-
-
 
 #' Extract the variable importance of glmboost models
 #'
 #' @description
-#' Extracts the variable importance ([mboost::varimp()]) of each fitted model and keeps the
-#' variables with a positive risk reduction.
+#' Extracts variable importance ([mboost::varimp()]) for a fitted model and sorts the
+#' results by decreasing risk reduction.
 #'
-#' @details
-#' The importance is summarised by variable, base-learner and model. glmboost has one
-#' base-learner per variable, so each group contains a single row and `selfreq` is 1.
+#' @param model A [mboost::glmboost()] model, e.g. one returned by [fit_glmboost()].
 #'
-#' @param model A list of [mboost::glmboost()] models, e.g. from [fit_glmboost()].
-#'
-#' @returns A data.table sorted by decreasing `selfreq`, with the columns `Variable`,
-#'   `blearner`, `Simulation` (position of the model in the list), `mrd` (mean risk
-#'   reduction), `msf` (mean relative selection frequency) and `selfreq` (number of rows
-#'   summarised).
+#' @returns A data.table containing the columns returned by [mboost::varimp()], sorted
+#'   by decreasing `reduction`. The `variable` column is renamed to `Variable`, and
+#'   `Variable` and `blearner` are converted to character.
 #' @export
 extract_glmboost_varimp <- function(model) {
 
-    ## extract variable importance of each fold ####
-    glmboost_varimp <- imap(
-        model,
-        function(x, idx){
-            varimp_logit <- as.data.table(varimp(x))[order(reduction, decreasing = TRUE)]
-            setnames(varimp_logit, "variable", "Variable")
-            varimp_logit[, `:=` (blearner  = as.character(blearner),
-                                 Variable  = as.character(Variable),
-                                 Simulation = idx)]
-            return(varimp_logit)
-        }) |>
-        rbindlist()
+    # extract variable importance of each fold 
+    glmboost_varimp <- as.data.table(varimp(model))[order(reduction, decreasing = TRUE)]
+    
+    setnames(glmboost_varimp, "variable", "Variable")
+    
+    glmboost_varimp[, `:=` (blearner  = as.character(blearner),
+                         Variable  = as.character(Variable))]
 
-    ## summarise the results of all folds ####
-    glmboost_varimp_summary <- glmboost_varimp[
-        reduction > 0,
+    return(glmboost_varimp)
+    }
+
+#' Summarise glmboost variable importance
+#'
+#' @description
+#' Summarises positive risk reductions by variable, base-learner and simulation
+#' identifiers.
+#'
+#' @param varimp A data.table containing glmboost variable importance values,
+#'   including `reduction`, `selfreq`, `Variable`, `blearner`, `tar_batch`,
+#'   `tar_rep` and `tar_seed` columns.
+#'
+#' @returns A data.table grouped by `Variable`, `blearner`, `tar_batch`,
+#'   `tar_rep` and `tar_seed`, containing mean risk reduction (`mrd`), mean
+#'   selection frequency (`msf`) and the number of rows summarised (`selfreq`),
+#'   sorted by decreasing `selfreq`.
+#' @export
+summarise_glmboost_varimp <- function(varimp) {
+
+    # summarise the results of all folds
+    varimp[reduction > 0, 
         .(mrd = mean(reduction), msf = mean(selfreq), selfreq = .N),
-        by = .(Variable, blearner, Simulation)][order(-selfreq)]
-
-    return(glmboost_varimp_summary)
+        by = .(Variable, blearner, tar_batch, tar_rep, tar_seed)][order(-selfreq)]
 }
 
 #' Predict the test sets with adaptive lasso models
 #'
 #' @description
-#' Predicts each test set with the corresponding fitted adaptive lasso model at
-#' `lambda.min`.
+#' Predicts a test set with a fitted adaptive lasso model at `lambda.min`.
 #'
-#' @param model A list of [glmnet::cv.glmnet()] models, e.g. from [fit_adaptive_lasso()].
-#' @param newdata A list of data.tables, one per model in the same order. The outcome
-#'   column `y` must be the first column, followed by the predictors used in the model.
+#' @param model A [glmnet::cv.glmnet()] model, e.g. from [fit_adaptive_lasso()].
+#' @param newdata A data.table of test observations. The outcome column `y` must be
+#'   first, followed by the predictors used in the model.
 #'
-#' @returns A data.table with one row per test observation, stacked over the models, with
-#'   the columns `y` (observed outcome, factor), `response` (predicted probability) and
-#'   `predict` (predicted class, factor with levels 0 and 1, threshold 0.5).
+#' @returns A data.table with one row per test observation and columns `y` (observed
+#'   outcome, converted to a factor), `response` (predicted probability) and `predict`
+#'   (predicted class, a factor with levels 0 and 1).
 #' @export
 get_adalasso_test_prediction <- function(model, newdata) {
 
     # obtain test results
-    map2(model, newdata,
-         function(x, y){
-             data.table(y = as.factor(y$y),
-                        response = as.vector(predict(x, s = x$lambda.min,
-                                                     newx = as.matrix(y[, -1]),
-                                                     type = "response")),
-                        predict = factor(predict(x,
-                                                 s = x$lambda.min,
-                                                 newx = as.matrix(y[, -1]),
-                                                 type = "class"),
-                                         levels = c(0, 1)))
-         }) |>
-        rbindlist()
+    data.table(y = as.factor(newdata$y),
+               response = as.vector(predict(model, 
+                                            s = model$lambda.min,
+                                            newx = as.matrix(newdata[, -1]),
+                                            type = "response")),
+               predict = factor(predict(model,
+                                        s = model$lambda.min,
+                                        newx = as.matrix(newdata[, -1]),
+                                        type = "class"),
+                                        levels = c(0, 1)))
 }
 
 #' Predict the test sets with glmboost models
 #'
 #' @description
-#' Predicts each test set with the corresponding fitted glmboost model.
+#' Predicts a test set with a fitted glmboost model.
 #'
-#' @param model A list of [mboost::glmboost()] models, e.g. from [fit_glmboost()].
-#' @param newdata A list of data.tables, one per model in the same order, containing the
-#'   outcome column `y` and the predictors used in the model.
+#' @param model A [mboost::glmboost()] model, e.g. from [fit_glmboost()].
+#' @param newdata A data.table of test observations containing the outcome column `y`
+#'   and the predictors used in the model.
 #'
-#' @returns A data.table with one row per test observation, stacked over the models, with
-#'   the columns `Simulation` (position of the model in the list), `y` (observed outcome),
-#'   `response` (predicted probability) and `predict` (predicted class, factor with
-#'   levels 0 and 1, threshold 0.5).
+#' @returns A data.table with one row per test observation and columns `y` (observed
+#'   outcome), `response` (predicted probability) and `predict` (predicted class, a
+#'   factor with levels 0 and 1, classified using a 0.5 threshold).
 #' @export
 get_glmboost_test_prediction <- function(model, newdata) {
 
     # obtain test result
-    simdata_glmboost_testpred <- pmap(
-        list(model, newdata, seq_along(model)),
-        function(x, y, z) data.table(
-            Simulation = z,
-            y = y$y,
-            response = as.vector(predict(x, newdata = y, type = "response"))
+    simdata_glmboost_testpred <- data.table(
+        y = newdata$y,
+        response = as.vector(predict(model, newdata = newdata, type = "response"))
         )
-    )  |>
-        rbindlist()
 
     # classify the test prediction
-    simdata_glmboost_testpred[, predict := factor(ifelse(response > .5, 1, 0), levels = c(0, 1))]
+    simdata_glmboost_testpred[, predict := factor(ifelse(response > 0.5, 1, 0), levels = c(0, 1))]
 
     return(simdata_glmboost_testpred)
 }
@@ -447,32 +427,27 @@ get_glmboost_test_prediction <- function(model, newdata) {
 #' Predict the test sets with ridge regression models
 #'
 #' @description
-#' Predicts each test set with the corresponding fitted ridge regression model at
-#' `lambda.min`.
+#' Predicts a test set with a fitted ridge regression model at `lambda.min`.
 #'
-#' @param model A list of [glmnet::cv.glmnet()] models, e.g. from [fit_ridge()].
-#' @param newdata A list of data.tables, one per model in the same order. The outcome
-#'   column `y` must be the first column, followed by the predictors used in the model.
+#' @param model A [glmnet::cv.glmnet()] model, e.g. from [fit_ridge()].
+#' @param newdata A data.table of test observations. The outcome column `y` must be
+#'   first, followed by the predictors used in the model.
 #'
-#' @returns A data.table with one row per test observation, stacked over the models, with
-#'   the columns `y` (observed outcome, factor), `response` (predicted probability) and
-#'   `predict` (predicted class, factor with levels 0 and 1, threshold 0.5).
+#' @returns A data.table with one row per test observation and columns `y` (observed
+#'   outcome, converted to a factor), `response` (predicted probability) and `predict`
+#'   (predicted class, a factor with levels 0 and 1).
 #' @export
 get_ridge_test_prediction <- function(model, newdata) {
 
     # obtain test results
-    map2(model, newdata,
-         function(x, y){
-             data.table(y = as.factor(y$y),
-                        response = as.vector(predict(x, s = x$lambda.min,
-                                                     newx = as.matrix(y[, -1]),
-                                                     type = "response")),
-                        predict = factor(predict(x,
-                                                 s = x$lambda.min,
-                                                 newx = as.matrix(y[, -1]),
-                                                 type = "class"),
-                                         levels = c(0, 1)))
-         }
-    ) |>
-        rbindlist()
+    data.table(y = as.factor(newdata$y),
+               response = as.vector(predict(model, 
+                                            s = model$lambda.min,
+                                            newx = as.matrix(newdata[, -1]),
+                                            type = "response")),
+               predict = factor(predict(model,
+                                        s = model$lambda.min,
+                                        newx = as.matrix(newdata[, -1]),
+                                        type = "class"),
+                                        levels = c(0, 1)))
 }
