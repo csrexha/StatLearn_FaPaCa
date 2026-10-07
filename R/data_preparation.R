@@ -52,7 +52,7 @@ binary_data_generator <- function(N, P, p_ref, tau, sigma, rho, link = "logit"){
 #' Generates one data set with [binary_data_generator()], converting the outcome to
 #' a factor and the predictor matrix to named columns.
 #'
-#' @param N, P, p_ref, tau, sigma, rho Arguments passed to
+#' @param N,P,p_ref,tau,sigma,rho Arguments passed to
 #'   [binary_data_generator()].
 #'
 #' @returns A data.table with factor column `y` and numeric predictor columns

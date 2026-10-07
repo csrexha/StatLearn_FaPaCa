@@ -216,7 +216,6 @@ cpss_glmboost <- function(data, binary_class, features, iter, q, PFER) {
 #'   `PFER` and the number of variables `p` it must satisfy `q^2 < p * PFER`, otherwise
 #'   the selection threshold exceeds 1 and [stabs::stabsel()] fails.
 #' @param PFER Upper bound for the per-family error rate.
-#' @param seed Random seed for the subsampling.
 #'
 #' @returns A [stabs::stabsel()] object.
 #' @seealso [stabs::stabsel()]
